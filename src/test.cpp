@@ -22,4 +22,13 @@ long result;
   result = 1126400L / result; // Back-calculate AVcc in mV
   return result;
 }
+
+DYNAMICS 
+stages:
+    orient self 
+    search for "food"
+        if located food, call others
+    search for path/ robot that found food 
+    once arrive, encircle food (make equidistant as more arrive)    
+
 #endif
