@@ -27,8 +27,8 @@ Links:
 #include <geometry_msgs/PoseStamped.h>   //xyz, xyzw, header
 #include "Wire.h"
 #include <VL53L0X.h>
-#include <String.h>
-#include "main.h"
+#include <string>
+#include <main.h>
 
 #define FOOD_PIN D5         // QRE1113
 #define LED1_PIN D0         // D0 and D4 are the built in LEDs
@@ -37,8 +37,8 @@ Links:
 // #define ENC_PIN_L D12
 
 // Network info
-const char* ssid     = "SwarmHub";
-const char* password = "The@ntH1ll";
+const char* ssid     = WIFI_SSID;
+const char* password = WIFI_PASS;
 // Set the rosserial socket server IP address
 IPAddress server(10,5,6,3);
 // Set the rosserial socket server port
@@ -60,21 +60,29 @@ ant Robot;
 VL53L0X sensor;             // VL53L0X
 
 // Initialize Variables
-float smell, viewDist, rightVel, leftVel;
+float smell, viewDist, rightVel, leftVel, Hz;
 bool lightTog = false;
 byte address = 41; //address 0x29
-String event;   // decides the overall state of the robot (wandering, tracking, etc.)
+String event, name = BUILD_ENV_NAME;
+char cmd[10];
+
+void adminCommands(char* cmd);
 
 void setup()
 {    
     // Use ESP8266 serial to monitor the process
     Serial.begin(74880);
+    Serial.println("");
+    Serial.print("Hello World! I am ");
+    Serial.println(name);
+    Serial.println("");
+
     // Wait until user is ready
     Serial.print("Press any key to begin");
     while(Serial.available() != 1);
     Serial.read();
 
-    Serial.println();
+    Serial.print("\r");
     Serial.print("Connecting to ");
     Serial.println(ssid);
 
@@ -92,9 +100,14 @@ void setup()
 
     // Connect the ESP8266 the the wifi AP
     WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
+    int timeout = 0;
+    while (WiFi.status() != WL_CONNECTED || timeout == 500) {
+        timeout++;
         delay(500);
         Serial.print(".");
+        lightTog = !lightTog;
+        digitalWrite(LED1_PIN, lightTog);
+        digitalWrite(LED2_PIN, false);
     }
 
     Serial.println("");
@@ -107,11 +120,13 @@ void setup()
     nh.initNode();
 
     // Another way to get IP
-    Serial.print("IP = ");
-    Serial.println(nh.getHardware()->getLocalIP());
+    // Serial.print("IP = ");
+    // Serial.println(nh.getHardware()->getLocalIP());
 
     // Start to be polite
     nh.advertise(chatter);
+
+
 }
 
 void loop()
@@ -121,7 +136,7 @@ void loop()
     if (sensor.timeoutOccurred()) {  //if Lidar sensor times out
         try{throw "LIDAR TIMEOUT";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception
     }
-
+    
     viewDist = sensor.readRangeContinuousMillimeters();     // gives Lidar distance in mm
     smell = Robot.ReadIR(FOOD_PIN);                         // returns true if food found, returns false if not
 
@@ -138,34 +153,43 @@ void loop()
 
 //---------------------------------------------ROS CONNECTION--------------------------------------------------------------------
 
-    // if (nh.connected()) {
+    if(WiFi.status() != WL_CONNECTED){      //connected to network
+        Serial.print("DISCONNECTED FROM ");
+        Serial.println(ssid);
+    }
+
+
+    // if (nh.connected()) {    //connected to roscore
     // Serial.println("Connected");
-    // Say hello
+    // //Say hello
     // str_msg.data = hello; 
     // } 
     // else {
-        // Serial.println("Not Connected");
+    //     Serial.println("Not Connected");
     // }
 
 
 // TODO make custom message type with Pose and bool to indicate phereomone type
-    pose_msg.pose.position.x = viewDist; //just for testing
-    pose_msg.pose.position.y = smell; //just for testing
+    // pose_msg.pose.position.x = x;
+    // pose_msg.pose.position.y = y;
     pose_msg.pose.position.y = 0;
-    pose_msg.pose.orientation.x = Robot.loc.qx;
-    pose_msg.pose.orientation.y = Robot.loc.qy;
-    pose_msg.pose.orientation.z = Robot.loc.qz;
-    pose_msg.pose.orientation.w = Robot.loc.qw;
-    pose_msg.header.frame_id = getenv ("PATH");  // TODO get name of environment (Robot name)
+    pose_msg.pose.orientation.x = Robot.currentLoc.qx;
+    pose_msg.pose.orientation.y = Robot.currentLoc.qy;
+    pose_msg.pose.orientation.z = Robot.currentLoc.qz;
+    pose_msg.pose.orientation.w = Robot.currentLoc.qw;
+    pose_msg.header.frame_id = name.c_str();    //convert to const char* bc c++ doesn't get strings
 
     // Robot.activate   = whether the pheromones are active or not
     chatter.publish( &pose_msg );
 
 
 
-//------------------------------------------------DECISIONS--------------------------------------------------------------------
+//------------------------------------------------BEHAVIOR--------------------------------------------------------------------
 
-    Robot.decision(event);  
+    Robot.decision(event);  // decides the overall state of the robot (wandering, tracking, etc.)
+
+
+
 
 
 
@@ -182,5 +206,43 @@ void loop()
 
     // nh.spinOnce();
     // Loop exproximativly at 10Hz
+
+
+    if(Serial.available()){         // read input werial to see if command is typed
+        int read = Serial.read();
+        for(int i = 0; i < sizeof(cmd); i++){
+            // char letter = static_cast<char>(read);
+            cmd[i] = cmd[i+1];
+        }
+        cmd[9] = static_cast<char>(read);
+        if(cmd[9] == '/'){
+            adminCommands(cmd);
+        }
+    }
+
     delay(100);
+}
+
+
+void adminCommands(char* cmd){       // command is typed, something is returned
+    if(cmd[7] == 'i' && cmd[8] == 'p'){             // "ip/"
+        Serial.println(WiFi.localIP());}
+    else if(cmd[5] == 'n' && cmd[6] == 'a' && cmd[7] == 'm' && cmd[8] == 'e'){  // "name/"
+        Serial.println(name);}
+    else if(cmd[5] == 'r' && cmd[6] == 's' && cmd[7] == 's' && cmd[8] == 'i'){  // "rssi/"
+        Serial.println(WiFi.RSSI());}
+    else if(cmd[4] == 's' && cmd[5] == 't' && cmd[6] == 'a' && cmd[7] == 't' && cmd[8] == 'e'){ // "state/"
+        Serial.println(event);}
+    else{
+        Serial.print("Command Not Found:"); 
+        Serial.print(cmd[9]); Serial.print(cmd[8]); Serial.print(cmd[7]); Serial.print(cmd[6]); Serial.print(cmd[5]); Serial.print(cmd[4]); Serial.print(cmd[3]); Serial.print(cmd[2]); Serial.print(cmd[1]); Serial.print(cmd[0]); 
+        Serial.println("'");
+        // for(int i = sizeof(cmd)-1; i >= 0; i--){
+        //     // Serial.print(i); Serial.print(cmd[i]); Serial.print(" - "); 
+        //     if(cmd[i] == NULL){break;}
+        //     else{Serial.print(cmd[i]);}
+        // }
+    }
+    Serial.read();
+    
 }

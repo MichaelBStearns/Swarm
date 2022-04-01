@@ -13,14 +13,14 @@ struct Location{
 class ant{
 
     public:
-        const int width=8, height=8;    //TODO: make real values
+        const int width=8, height=8;    //TODO: measure values
         int id, velocity;
-        bool active;
-        struct Location loc;
-        String world[100][100];
+        bool active;    //pheromones
+        struct Location currentLoc, desiredLoc;
+        char world[100][100];   // char to take up as little space as possible in RAM
 
         ant(){
-            loc = { 0,0,0,
+            currentLoc = { 0,0,0,
                     0,0,0,
                     0,0,0,0};
         }
@@ -103,17 +103,17 @@ class ant{
             if(diff >= threshold){      // TODO may want to seperate this into its own function...
                 return(true);
             }
-            else if(diff < threshold){
+            else{ // if(diff < threshold)
                 return(false);
             }
 
         }
 
         void euler_to_quarternion(void){    // converts euler in Location struct to quarternion in Location struct
-            loc.qw = cos(loc.er) * cos(loc.ep) * cos(loc.qy) - sin(loc.er) * sin(loc.ep) * sin(loc.qy);
-            loc.qx = sin(loc.er) * sin(loc.ep) * cos(loc.ey) + cos(loc.er) * cos(loc.ep) * sin(loc.ey);
-            loc.qy = sin(loc.er) * cos(loc.ep) * cos(loc.ey) + cos(loc.er) * sin(loc.ep) * sin(loc.ey);
-            loc.qz = cos(loc.er) * sin(loc.ep) * cos(loc.ey) - sin(loc.er) * cos(loc.ep) * sin(loc.ey);
+            currentLoc.qw = cos(currentLoc.er) * cos(currentLoc.ep) * cos(currentLoc.qy) - sin(currentLoc.er) * sin(currentLoc.ep) * sin(currentLoc.qy);
+            currentLoc.qx = sin(currentLoc.er) * sin(currentLoc.ep) * cos(currentLoc.ey) + cos(currentLoc.er) * cos(currentLoc.ep) * sin(currentLoc.ey);
+            currentLoc.qy = sin(currentLoc.er) * cos(currentLoc.ep) * cos(currentLoc.ey) + cos(currentLoc.er) * sin(currentLoc.ep) * sin(currentLoc.ey);
+            currentLoc.qz = cos(currentLoc.er) * sin(currentLoc.ep) * cos(currentLoc.ey) - sin(currentLoc.er) * cos(currentLoc.ep) * sin(currentLoc.ey);
         }
 
 };
@@ -123,7 +123,7 @@ class ant{
 
 
 // For passing structs into functions
-// void data(Location *loc) {
+// void data(Location *currentLoc) {
 // void loop(){
 //     int data(&samples);
 // }
