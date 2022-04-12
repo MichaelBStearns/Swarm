@@ -1,2 +1,0 @@
-MABL/amigo_description:MABL/amigo_real:MABL/amigo_sim:aco_ros:hardware:swarm_msgs
--DCATKIN_DEVEL_PREFIX=/home/mbs4433/Swarm/devel -DCMAKE_INSTALL_PREFIX=/home/mbs4433/Swarm/install -G Unix Makefiles
