@@ -3,9 +3,11 @@
 
 #include <Arduino.h>
 #include <String.h>
+#include <swarm_msgs/Grid.h>
 
 struct Location{
     int x, y, z;            // position
+    int gx, gy;             // grid position
     int er, ep, ey;         // euler
     int qx, qy, qz, qw;     // quarternion
 };
@@ -17,7 +19,8 @@ class ant{
         int id, velocity;
         bool active;    //pheromones
         struct Location currentLoc, desiredLoc;
-        char world[100][100];   // char to take up as little space as possible in RAM
+        uint8_t currentPher[5], prevPher[5];
+        swarm_msgs::Grid world;   // same as Grid being sent
 
         ant(){
             currentLoc = { 0,0,0,
@@ -25,20 +28,7 @@ class ant{
                     0,0,0,0};
         }
 
-        // constexpr uint32_t hash(const char* data, size_t const size) noexcept{  //for hashing strings to be used in switch
-        //     uint32_t hash = 5381;
-
-        //     for(const char *c = data; c < data + size; ++c)
-        //         hash = ((hash << 5) + hash) + (unsigned char) *c;
-
-        //     return hash;
-        // } 
-
-        void decision(String state){                                                                 
-            // switch(hash(state)){
-            // case hash("one") : // do something
-            // case hash("two") : // do something
-            // }
+        void decision(String state){
             if(state == "ROAM"){    // no food or pheromones found
                 randomSearch();
             }
@@ -57,8 +47,6 @@ class ant{
             else{   // if no state found
                 try{throw "NO DECISION STATE FOUND";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
             }
-
-
         }
 
         void getOdom(int left, int right){
