@@ -3,9 +3,11 @@
 
 #include <Arduino.h>
 #include <String.h>
+#include <swarm_msgs/Grid.h>
 
 struct Location{
     int x, y, z;            // position
+    int gx, gy;             // grid position
     int er, ep, ey;         // euler
     int qx, qy, qz, qw;     // quarternion
 };
@@ -13,32 +15,20 @@ struct Location{
 class ant{
 
     public:
-        const int width=8, height=8;    //TODO: make real values
+        const int width=8, height=8;    //TODO: measure values
         int id, velocity;
-        bool active;
-        struct Location loc;
-        String world[100][100];
+        bool active;    //pheromones
+        struct Location currentLoc, desiredLoc;
+        uint8_t currentPher[5], prevPher[5];
+        swarm_msgs::Grid world;   // same as Grid being sent
 
         ant(){
-            loc = { 0,0,0,
+            currentLoc = { 0,0,0,
                     0,0,0,
                     0,0,0,0};
         }
 
-        // constexpr uint32_t hash(const char* data, size_t const size) noexcept{  //for hashing strings to be used in switch
-        //     uint32_t hash = 5381;
-
-        //     for(const char *c = data; c < data + size; ++c)
-        //         hash = ((hash << 5) + hash) + (unsigned char) *c;
-
-        //     return hash;
-        // } 
-
-        void decision(String state){                                                                 
-            // switch(hash(state)){
-            // case hash("one") : // do something
-            // case hash("two") : // do something
-            // }
+        void decision(String state){
             if(state == "ROAM"){    // no food or pheromones found
                 randomSearch();
             }
@@ -57,8 +47,6 @@ class ant{
             else{   // if no state found
                 try{throw "NO DECISION STATE FOUND";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
             }
-
-
         }
 
         void getOdom(int left, int right){
@@ -103,17 +91,17 @@ class ant{
             if(diff >= threshold){      // TODO may want to seperate this into its own function...
                 return(true);
             }
-            else if(diff < threshold){
+            else{ // if(diff < threshold)
                 return(false);
             }
 
         }
 
         void euler_to_quarternion(void){    // converts euler in Location struct to quarternion in Location struct
-            loc.qw = cos(loc.er) * cos(loc.ep) * cos(loc.qy) - sin(loc.er) * sin(loc.ep) * sin(loc.qy);
-            loc.qx = sin(loc.er) * sin(loc.ep) * cos(loc.ey) + cos(loc.er) * cos(loc.ep) * sin(loc.ey);
-            loc.qy = sin(loc.er) * cos(loc.ep) * cos(loc.ey) + cos(loc.er) * sin(loc.ep) * sin(loc.ey);
-            loc.qz = cos(loc.er) * sin(loc.ep) * cos(loc.ey) - sin(loc.er) * cos(loc.ep) * sin(loc.ey);
+            currentLoc.qw = cos(currentLoc.er) * cos(currentLoc.ep) * cos(currentLoc.qy) - sin(currentLoc.er) * sin(currentLoc.ep) * sin(currentLoc.qy);
+            currentLoc.qx = sin(currentLoc.er) * sin(currentLoc.ep) * cos(currentLoc.ey) + cos(currentLoc.er) * cos(currentLoc.ep) * sin(currentLoc.ey);
+            currentLoc.qy = sin(currentLoc.er) * cos(currentLoc.ep) * cos(currentLoc.ey) + cos(currentLoc.er) * sin(currentLoc.ep) * sin(currentLoc.ey);
+            currentLoc.qz = cos(currentLoc.er) * sin(currentLoc.ep) * cos(currentLoc.ey) - sin(currentLoc.er) * cos(currentLoc.ep) * sin(currentLoc.ey);
         }
 
 };
@@ -123,7 +111,7 @@ class ant{
 
 
 // For passing structs into functions
-// void data(Location *loc) {
+// void data(Location *currentLoc) {
 // void loop(){
 //     int data(&samples);
 // }
