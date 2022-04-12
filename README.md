@@ -10,3 +10,4 @@ A swarm of beetle-weight robots that communicate through wifi and accomplish sim
 
 
 ## ROS
+Use "Swarm" Folder as a ROS workspace. Within the folder use ```catkin_make``` to create the workspace.
