@@ -8,6 +8,26 @@
  * The default port is 11411
  *
  */
+/*                      NodeMCU
+                    /----------------\
+   USED (Enc2) - A0 | ADC0    GPIO16 | D0 - USED (LED)
+                    | RES      GPIO5 | D1 - USED (SCL-Lidar)        
+                    | RES      GPIO4 | D2 - USED (SDA-Lidar)    
+  USED (Enc1) - SD3 | GPIO10   GPIO0 | D3 - UNUSED
+                    | GPIO9    GPIO2 | D4 - USED (LED)    
+                    | MOSI      3.3V | 
+                    | CS         GND | 
+                    | MISO    GPIO14 | D5 - USED (IR)    
+                    | SCLK    GPIO12 | D6 - USED (Motor Control)  
+                    | GND     GPIO13 | D7 - USED (Motor Control)  
+                    | 3.3V    GPIO15 | D8 - USED (Motor Control)  
+                    | EN       GPIO3 | RX - USED (Motor Control) 
+                    | RST      GPIO1 | TX
+                    | GND        GND |    
+                    | Vin       3.3V |    
+                    \------||||------/
+                           ||||
+*/
 
 /*
 Links:
@@ -30,11 +50,18 @@ Links:
 #include <string>
 #include <main.h>
 
-#define FOOD_PIN D5 // QRE1113
-#define LED1_PIN D0 // D0 and D4 are the built in LEDs
+#define LED1_PIN D0             // D0 and D4 are the built in LEDs
 #define LED2_PIN D4
-// #define ENC_PIN_R D11
-// #define ENC_PIN_L D12
+
+#define FOOD_PIN D5             // QRE1113
+
+#define motorR_back D6          // Motor Control
+#define motorR_for D7 
+#define motorL_for D8
+#define motorL_back D9
+
+#define ENC_PIN_R 10 //SD3      // Encoders
+#define ENC_PIN_L A0
 
 // Network info
 const char *ssid = WIFI_SSID;
@@ -56,8 +83,7 @@ ros::NodeHandle nh;
 // Make a chatter publisher
 // std_msgs::String str_msg;
 geometry_msgs::PoseStamped pose_msg; // TODO custom message?
-
-void grid_msg(const swarm_msgs::Grid& msg){
+void sub_msg(const swarm_msgs::Grid& msg){
     Robot.currentPher[0] = msg.column[Robot.currentLoc.x].row[Robot.currentLoc.y].pheromones[0];
     Robot.currentPher[1] = msg.column[Robot.currentLoc.x].row[Robot.currentLoc.y].pheromones[1];
     Robot.currentPher[2] = msg.column[Robot.currentLoc.x].row[Robot.currentLoc.y].pheromones[2];
@@ -67,12 +93,12 @@ void grid_msg(const swarm_msgs::Grid& msg){
     // Serial.println("Pheromone!");
 }
 ros::Publisher chatter("/Pheromones_Write", &pose_msg);
-ros::Subscriber<swarm_msgs::Grid> sub("/Pheromones_Read", &grid_msg);
+ros::Subscriber<swarm_msgs::Grid> sub("/Pheromones_Read", &sub_msg);
 
 // Initialize Variables
-float smell, viewDist, rightVel, leftVel, Hz;
+float smell, viewDist, right, left, Hz;
 bool lightTog = false;
-int timeout = 0;
+int timeout = 0, *wheels, timer = 0;
 byte address = 41; // address 0x29
 String event, name = BUILD_ENV_NAME;
 char cmd[10];
@@ -106,8 +132,14 @@ void setup()
     // Establish pins
     pinMode(LED1_PIN, OUTPUT);
     pinMode(LED2_PIN, OUTPUT);
-    // pinMode(ENC_PIN_R, INPUT);
-    // pinMode(ENC_PIN_L, INPUT);
+
+    pinMode(motorL_for, OUTPUT);
+    pinMode(motorL_back, OUTPUT);
+    pinMode(motorR_for, OUTPUT);
+    pinMode(motorR_back, OUTPUT);
+    
+    pinMode(ENC_PIN_R, INPUT);
+    pinMode(ENC_PIN_L, INPUT);
 
     // Connect the ESP8266 the the wifi AP
     WiFi.begin(ssid, password);
@@ -134,7 +166,7 @@ void setup()
     nh.advertise(chatter);
     // Start asking questions
     nh.subscribe(sub);
-    delay(10000);
+    // delay(10000);
 }
 
 void loop()
@@ -143,68 +175,115 @@ void loop()
 
     if (sensor.timeoutOccurred())
     { // if Lidar sensor times out
-        try
-        {
-            throw "LIDAR TIMEOUT";
-        }
-        catch (int E)
-        {
-            Serial.print("AN EXCEPTION WAS THROWN: ");
-            Serial.print(E);
-        } // throw exception
+        try{throw "LIDAR TIMEOUT";} catch (int E){Serial.print("AN EXCEPTION WAS THROWN: ");Serial.print(E);} // throw exception
     }
 
     viewDist = sensor.readRangeContinuousMillimeters(); // gives Lidar distance in mm
     smell = Robot.ReadIR(FOOD_PIN);                     // returns true if food found, returns false if not
 
-    // rightVel = analogRead(ENC_PIN_R);
-    // leftVel = analogRead(ENC_PIN_L);
+    right = digitalRead(ENC_PIN_R);
+    left = map(analogRead(ENC_PIN_L), 1, 1024, 0, 1);
+
+
+    Robot.setOdom(left, right);
+
+    
+    Serial.print(viewDist); Serial.print("\t");
+    Serial.print(smell); Serial.print("\t");
+    Serial.print(right); Serial.print("\t"); 
+    Serial.print(left); Serial.print("\t");
 
     /* #endregion */
     /* #region ----------------------------------------------CALCULATIONS--------------------------------------------------------------------*/
 
-    Robot.getOdom(leftVel, rightVel);
+    wheels = Robot.Drive(0, 0, 0);
+    timer++;
+
+    if(timer>0 && timer<=50){
+        Serial.print("forward");  Serial.println("\t");
+        Robot.driveWheel('R','F',100);
+        Robot.driveWheel('L','F',100);
+    }
+    else if(timer>50 && timer<=100){
+        Serial.print("left");  Serial.println("\t");
+        Robot.driveWheel('R','F',100);
+        Robot.driveWheel('L','B',100);
+    }
+    else if(timer>100 && timer<=150){
+        Serial.print("backward");  Serial.println("\t");
+        Robot.driveWheel('R','B',100);
+        Robot.driveWheel('L','B',100);
+    }
+    else if(timer>150 && timer<=200){
+        Serial.print("right");  Serial.println("\t");
+        Robot.driveWheel('R','B',100);
+        Robot.driveWheel('L','F',100);
+    }
+    else if(timer>200){ 
+        Serial.println("");
+        timer = 0;
+    }
+    
+
+    // if(*wheels >= 0){
+    //     analogWrite(motorR_for, *wheels);
+    //     analogWrite(motorR_back, 0);
+    // }
+    // else{
+    //     analogWrite(motorR_for, 0);
+    //     analogWrite(motorR_back, abs(*wheels));
+    // }
+    // if(*(wheels+1) >= 0){
+    //     analogWrite(motorL_for, *wheels);
+    //     analogWrite(motorL_back, 0);
+    // }
+    // else{
+    //     analogWrite(motorL_for, 0);
+    //     analogWrite(motorL_back, abs(*wheels));
+    // }
+
+    // Robot.getOdom(left, right);
 
     /* #endregion */
     /* #region ---------------------------------------------ROS-CONNECTION-------------------------------------------------------------------*/
 
-    if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
-        chatter.publish(&pose_msg);
-        digitalWrite(LED1_PIN, false);
-        digitalWrite(LED2_PIN, true);
+    // if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
+    //     chatter.publish(&pose_msg);
+    //     digitalWrite(LED1_PIN, false);
+    //     digitalWrite(LED2_PIN, true);
 
-    }
-    else if (WiFi.status() != WL_CONNECTED){                // not connected to network
-        Serial.print("DISCONNECTED FROM ");  Serial.println(ssid);
-        WiFi.reconnect();
-        timeout = 0;
-        while (WiFi.status() != WL_CONNECTED && timeout <= 20)
-        {
-            timeout++;
-            delay(500);
-            Serial.print(".");
+    // }
+    // else if (WiFi.status() != WL_CONNECTED){                // not connected to network
+    //     Serial.print("DISCONNECTED FROM ");  Serial.println(ssid);
+    //     WiFi.reconnect();
+    //     timeout = 0;
+    //     while (WiFi.status() != WL_CONNECTED && timeout <= 20)
+    //     {
+    //         timeout++;
+    //         delay(500);
+    //         Serial.print(".");
 
-            lightTog = !lightTog;
-            digitalWrite(LED1_PIN, lightTog);               // slow blink
-            digitalWrite(LED2_PIN, true);
-        }
-        Serial.println("");
-    }
-    else if (!nh.connected()){                              // only not connected to roscore
-        Serial.println("DISCONNECTED FROM ROSCORE");
-        nh.advertise(chatter);
-        timeout = 0;
-        while (!nh.connected() && timeout <= 10){
-            timeout++;
-            delay(250);
-            Serial.print(".");
+    //         lightTog = !lightTog;
+    //         digitalWrite(LED1_PIN, lightTog);               // slow blink
+    //         digitalWrite(LED2_PIN, true);
+    //     }
+    //     Serial.println("");
+    // }
+    // else if (!nh.connected()){                              // only not connected to roscore
+    //     Serial.println("DISCONNECTED FROM ROSCORE");
+    //     nh.advertise(chatter);
+    //     timeout = 0;
+    //     while (!nh.connected() && timeout <= 10){
+    //         timeout++;
+    //         delay(250);
+    //         Serial.print(".");
 
-            lightTog = !lightTog;
-            digitalWrite(LED1_PIN, lightTog);               // faster blink
-            digitalWrite(LED2_PIN, true);
-        }
-        Serial.println("");
-    }
+    //         lightTog = !lightTog;
+    //         digitalWrite(LED1_PIN, lightTog);               // faster blink
+    //         digitalWrite(LED2_PIN, true);
+    //     }
+    //     Serial.println("");
+    // }
 
     Robot.active = 1;
     // TODO make custom message type with Pose and bool to indicate phereomone type
@@ -216,7 +295,7 @@ void loop()
     pose_msg.pose.orientation.z = Robot.currentLoc.qz;
     pose_msg.pose.orientation.w = Robot.currentLoc.qw;
     pose_msg.header.frame_id = name.c_str();                // convert to const char* bc c++ doesn't do strings
-    pose_msg.header.stamp.sec = Robot.active;               // hijack time and replace with pheromone activation
+    pose_msg.header.stamp.sec = Robot.active;               // hijack timer and replace with pheromone activation
 
 
     // Light front LED solid to indicate connected
@@ -229,6 +308,23 @@ void loop()
 
     /* #endregion */
     /* #region -------------------------------------------------EXTRAS-----------------------------------------------------------------------*/
+
+    // for(int i=0; i <= 5;i++){  
+    //     if(i % 2 == 0){
+    //         analogWrite(motorL_for, 100);
+    //         analogWrite(motorL_back, 0);
+    //         Serial.print("forward");
+    //     }
+    //     else if(i % 2 == 1){
+    //         analogWrite(motorL_for, 0);
+    //         analogWrite(motorL_back, 100);
+    //         Serial.print("backward");
+    //     }
+    //     delay(2000);
+    // }
+
+
+
 
     // Serial.print(rightVel); Serial.print("\t");
     // Serial.print(leftVel); Serial.print("\t");
@@ -255,7 +351,7 @@ void loop()
     /* #endregion */
     /* #region ---------------------------------------------------END------------------------------------------------------------------------*/
     delay(100);
-    nh.spinOnce();
+    // nh.spinOnce();
 }
     /* #endregion */
 
@@ -304,3 +400,5 @@ void adminCommands(char *cmd)
     }
     Serial.read();
 }
+
+

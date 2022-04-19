@@ -4,6 +4,13 @@
 #include <Arduino.h>
 #include <String.h>
 #include <swarm_msgs/Grid.h>
+// #include <main.cpp>
+
+// Motor Control
+#define motorR_back D6
+#define motorR_for D7 
+#define motorL_for D8
+#define motorL_back D9
 
 struct Location{
     int x, y, z;            // position
@@ -16,7 +23,7 @@ class ant{
 
     public:
         const int width=8, height=8;    //TODO: measure values
-        int id, velocity;
+        int id, velocity, rightOld=-1, leftOld=-1;
         bool active;    //pheromones
         struct Location currentLoc, desiredLoc;
         uint8_t currentPher[5], prevPher[5];
@@ -49,13 +56,43 @@ class ant{
             }
         }
 
+        int * Drive(int alpha, int theta, int beta){
+            int* right, left;
+        
+
+            return right;
+        }
+
         void getOdom(int left, int right){
             // right = velocity of right wheel, left = velocity of left wheel
-            // talk about control in lecture
-
-
+            // talked about control in lecture
 
             euler_to_quarternion();
+        }
+        
+        void setOdom(int left, int right){
+            
+        }
+
+        void driveWheel(char wheel, char dir, int pwm){
+            if((wheel == 'r' || wheel == 'R') && (dir == 'f' || dir == 'F')){
+                analogWrite(motorR_for, pwm);
+                analogWrite(motorR_back, 0);
+            }
+            else if((wheel == 'r' || wheel == 'R') && (dir == 'b' || dir == 'B')){
+                analogWrite(motorR_for, 0);
+                analogWrite(motorR_back, pwm);
+            }
+            else if((wheel == 'l' || wheel == 'L') && (dir == 'f' || dir == 'F')){
+                analogWrite(motorR_for, pwm);
+                analogWrite(motorR_back, 0);
+            }
+            else if((wheel == 'l' || wheel == 'L') && (dir == 'b' || dir == 'B')){
+                analogWrite(motorR_for, 0);
+                analogWrite(motorR_back, pwm);
+            }
+
+
         }
 
         void setPheromone(bool active){
@@ -87,7 +124,9 @@ class ant{
             while (digitalRead(sensor) == HIGH && micros() - reading < 3000);
             int diff = micros() - reading;
         
-            int threshold = 20;
+            Serial.print(diff); Serial.print("\t");
+
+            int threshold = 200;
             if(diff >= threshold){      // TODO may want to seperate this into its own function...
                 return(true);
             }
