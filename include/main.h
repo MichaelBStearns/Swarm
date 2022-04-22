@@ -297,28 +297,29 @@ class ant{
             currentLoc.Pos.x = currentLoc.Grid.x * squareWidth;
             currentLoc.Pos.y = currentLoc.Grid.y * squareHeight;
         }
+        void read_encR(){ //maintain encoder tick right wheel counts
+            countR = countR + 1;
+            time_nowR = millis(); 
+            delta_t_R = time_nowR-time_previousR;
+            time_previousR = time_nowR;
+            v_right = countR /(rpm_convert * delta_t_R); //linear velocity left wheel
+            countL = 0;
+        }
 
+        void read_encL(){ //maintain encoder tick left wheel counts
+            countL = countL + 1;
+            time_nowL = millis(); 
+            delta_t_L = time_nowL-time_previousL;
+            time_previousL = time_nowL;
+            v_left = countL /(rpm_convert * delta_t_L); //linear velocity left wheel
+            countL = 0;
+        }
+        
 };
 
 #endif
 
-void read_encR(){ //maintain encoder tick right wheel counts
-    countR = countR + 1;
-    time_nowR = millis(); 
-    delta_t_R = time_nowR-time_previousR;
-    time_previousR = time_nowR;
-    v_right = countR /(rpm_convert * delta_t_R); //linear velocity left wheel
-    countL = 0;
-}
 
-void read_encL(){ //maintain encoder tick left wheel counts
-    countL = countL + 1;
-    time_nowL = millis(); 
-    delta_t_L = time_nowL-time_previousL;
-    time_previousL = time_nowL;
-    v_left = countL /(rpm_convert * delta_t_L); //linear velocity left wheel
-    countL = 0;
-}
 
 // For passing structs into functions
 // void data(Location *currentLoc) {
