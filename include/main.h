@@ -19,14 +19,6 @@
 #define pi 3.14159265
 #define rpm_convert 6000
 
-double theta, phi = 0.0;
-double time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R, delta_t_L = 0.0;
-double omega_left, omega_right = 0.0;
-double v_center, v_right, v_left = 0.0;
-double revL, revR = 0.0;
-int countR, countL = 0;
-double x_prime, x, y_prime, y, theta_prime = 0.0;
-
 struct Location{
     int x, y, z;            // position
     int gx, gy;             // grid position
@@ -41,6 +33,13 @@ class ant{
         int id, velocity, rightOld=-1, leftOld=-1;
         bool active;    //pheromones
         struct Location currentLoc, desiredLoc;
+        double theta, phi = 0.0;
+        double time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R, delta_t_L = 0.0;
+        double omega_left, omega_right = 0.0;
+        double v_center, v_right, v_left = 0.0;
+        double revL, revR = 0.0;
+        int countR, countL = 0;
+        double x_prime, x, y_prime, y, theta_prime = 0.0;
         uint8_t currentPher[5], prevPher[5];
         swarm_msgs::Grid world;   // same as Grid being sent
 
@@ -160,7 +159,7 @@ class ant{
                 return(true);
             }
             else{ // if(diff < threshold)
-                return(false);
+                return(false)
             }
 
         }
@@ -172,27 +171,30 @@ class ant{
             currentLoc.qz = cos(currentLoc.er) * sin(currentLoc.ep) * cos(currentLoc.ey) - sin(currentLoc.er) * cos(currentLoc.ep) * sin(currentLoc.ey);
         }
 
+        void read_encR(){ //maintain encoder tick right wheel counts
+            countR = countR + 1;
+            time_nowR = millis(); 
+            delta_t_R = time_nowR-time_previousR;
+            time_previousR = time_nowR;
+            v_right = countR /(rpm_convert * delta_t_R); //linear velocity left wheel
+            countL = 0;
+        }
+
+
+
+        void read_encL(){ //maintain encoder tick left wheel counts
+            countL = countL + 1;
+            time_nowL = millis(); 
+            delta_t_L = time_nowL-time_previousL;
+            time_previousL = time_nowL;
+            v_left = countL /(rpm_convert * delta_t_L); //linear velocity left wheel
+            countL = 0;
+        }
 };
 
 #endif
 
-void read_encR(){ //maintain encoder tick right wheel counts
-    countR = countR + 1;
-    time_nowR = millis(); 
-    delta_t_R = time_nowR-time_previousR;
-    time_previousR = time_nowR;
-    v_right = countR /(rpm_convert * delta_t_R); //linear velocity left wheel
-    countL = 0;
-}
 
-void read_encL(){ //maintain encoder tick left wheel counts
-    countL = countL + 1;
-    time_nowL = millis(); 
-    delta_t_L = time_nowL-time_previousL;
-    time_previousL = time_nowL;
-    v_left = countL /(rpm_convert * delta_t_L); //linear velocity left wheel
-    countL = 0;
-}
 
 // For passing structs into functions
 // void data(Location *currentLoc) {
