@@ -13,7 +13,7 @@ namespace swarm_msgs
   class Column : public ros::Msg
   {
     public:
-      swarm_msgs::Square row[10];
+      swarm_msgs::Square row[25];
 
     Column():
       row()
@@ -23,7 +23,7 @@ namespace swarm_msgs
     virtual int serialize(unsigned char *outbuffer) const override
     {
       int offset = 0;
-      for( uint32_t i = 0; i < 10; i++){
+      for( uint32_t i = 0; i < 25; i++){
       offset += this->row[i].serialize(outbuffer + offset);
       }
       return offset;
@@ -32,7 +32,7 @@ namespace swarm_msgs
     virtual int deserialize(unsigned char *inbuffer) override
     {
       int offset = 0;
-      for( uint32_t i = 0; i < 10; i++){
+      for( uint32_t i = 0; i < 25; i++){
       offset += this->row[i].deserialize(inbuffer + offset);
       }
      return offset;
