@@ -43,8 +43,8 @@ Links:
 #define ROSSERIAL_ARDUINO_TCP
 #include <ros.h>
 // #include <std_msgs/String.h>
-#include <geometry_msgs/PoseStamped.h> //xyz, xyzw, header
-#include <swarm_msgs/Grid.h>
+#include <swarm_msgs/Plus.h>    //Header, Pose, bool, string, float32[5]
+#include <swarm_msgs/Grid.h>    
 #include "Wire.h"
 #include <VL53L0X.h>
 #include <string>
@@ -78,17 +78,16 @@ ant Robot;
 // Lidar sensor
 VL53L0X sensor; // VL53L0X
 
-
 ros::NodeHandle nh;
 // Make a chatter publisher
 // std_msgs::String str_msg;
-geometry_msgs::PoseStamped pose_msg; // TODO custom message?
+swarm_msgs::Plus pose_msg; // TODO custom message?
 void sub_msg(const swarm_msgs::Grid& msg){
-    Robot.currentPher[0] = msg.column[Robot.currentLoc.x].row[Robot.currentLoc.y].pheromones[0];
-    Robot.currentPher[1] = msg.column[Robot.currentLoc.x].row[Robot.currentLoc.y].pheromones[1];
-    Robot.currentPher[2] = msg.column[Robot.currentLoc.x].row[Robot.currentLoc.y].pheromones[2];
-    Robot.currentPher[3] = msg.column[Robot.currentLoc.x].row[Robot.currentLoc.y].pheromones[3];
-    Robot.currentPher[4] = msg.column[Robot.currentLoc.x].row[Robot.currentLoc.y].pheromones[4];
+    Robot.currentPher[0] = msg.column[Robot.currentLoc.Pos.x].row[Robot.currentLoc.Pos.y].pheromones[0];
+    Robot.currentPher[1] = msg.column[Robot.currentLoc.Pos.x].row[Robot.currentLoc.Pos.y].pheromones[1];
+    Robot.currentPher[2] = msg.column[Robot.currentLoc.Pos.x].row[Robot.currentLoc.Pos.y].pheromones[2];
+    Robot.currentPher[3] = msg.column[Robot.currentLoc.Pos.x].row[Robot.currentLoc.Pos.y].pheromones[3];
+    Robot.currentPher[4] = msg.column[Robot.currentLoc.Pos.x].row[Robot.currentLoc.Pos.y].pheromones[4];
     // Serial.println(msg.column);
     // Serial.println("Pheromone!");
 }
@@ -142,22 +141,22 @@ void setup()
     pinMode(ENC_PIN_L, INPUT);
 
     // Connect the ESP8266 the the wifi AP
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED && timeout <= 60)
-    {
-        timeout++;
-        delay(500);
-        Serial.print(".");
+    // WiFi.begin(ssid, password);
+    // while (WiFi.status() != WL_CONNECTED && timeout <= 60)
+    // {
+    //     timeout++;
+    //     delay(500);
+    //     Serial.print(".");
 
-        lightTog = !lightTog;
-        digitalWrite(LED1_PIN, lightTog);
-        digitalWrite(LED2_PIN, true);
-    }
+    //     lightTog = !lightTog;
+    //     digitalWrite(LED1_PIN, lightTog);
+    //     digitalWrite(LED2_PIN, true);
+    // }
 
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
+    // Serial.println("");
+    // Serial.println("WiFi connected");
+    // Serial.println("IP address: ");
+    // Serial.println(WiFi.localIP());
 
     // Set the connection to rosserial socket server
     nh.getHardware()->setConnection(server, serverPort);
@@ -188,41 +187,14 @@ void loop()
     Robot.setOdom(left, right);
 
     
-    Serial.print(viewDist); Serial.print("\t");
-    Serial.print(smell); Serial.print("\t");
-    Serial.print(right); Serial.print("\t"); 
-    Serial.print(left); Serial.print("\t");
+    // Serial.print(viewDist); Serial.print("\t");
+    // Serial.print(smell); Serial.print("\t");
+    // Serial.print(right); Serial.print("\t"); 
+    // Serial.print(left); Serial.print("\t");
 
     /* #endregion */
     /* #region ----------------------------------------------CALCULATIONS--------------------------------------------------------------------*/
 
-    wheels = Robot.Drive(0, 0, 0);
-    timer++;
-
-    if(timer>0 && timer<=50){
-        Serial.print("forward");  Serial.println("\t");
-        Robot.driveWheel('R','F',100);
-        Robot.driveWheel('L','F',100);
-    }
-    else if(timer>50 && timer<=100){
-        Serial.print("left");  Serial.println("\t");
-        Robot.driveWheel('R','F',100);
-        Robot.driveWheel('L','B',100);
-    }
-    else if(timer>100 && timer<=150){
-        Serial.print("backward");  Serial.println("\t");
-        Robot.driveWheel('R','B',100);
-        Robot.driveWheel('L','B',100);
-    }
-    else if(timer>150 && timer<=200){
-        Serial.print("right");  Serial.println("\t");
-        Robot.driveWheel('R','B',100);
-        Robot.driveWheel('L','F',100);
-    }
-    else if(timer>200){ 
-        Serial.println("");
-        timer = 0;
-    }
     
 
     // if(*wheels >= 0){
@@ -285,17 +257,20 @@ void loop()
     //     Serial.println("");
     // }
 
-    Robot.active = 1;
-    // TODO make custom message type with Pose and bool to indicate phereomone type
-    pose_msg.pose.position.x = Robot.currentLoc.x;
-    pose_msg.pose.position.y = Robot.currentLoc.y;
-    pose_msg.pose.position.y = Robot.currentLoc.z;
+    pose_msg.pose.position.x = Robot.currentLoc.Pos.x;
+    pose_msg.pose.position.y = Robot.currentLoc.Pos.y;
     pose_msg.pose.orientation.x = Robot.currentLoc.qx;
     pose_msg.pose.orientation.y = Robot.currentLoc.qy;
     pose_msg.pose.orientation.z = Robot.currentLoc.qz;
     pose_msg.pose.orientation.w = Robot.currentLoc.qw;
-    pose_msg.header.frame_id = name.c_str();                // convert to const char* bc c++ doesn't do strings
-    pose_msg.header.stamp.sec = Robot.active;               // hijack timer and replace with pheromone activation
+    pose_msg.header.frame_id = name.c_str();         // convert to const char* bc c++ doesn't do strings
+    pose_msg.pheromone = Robot.active;               // pheromone activation
+    pose_msg.state = event.c_str();                  // state of robot for reference
+    // pose_msg.display[0] = ;                       //if anything to display wirelessly (bugfixing)
+    // pose_msg.display[1] = ;
+    // pose_msg.display[2] = ;
+    // pose_msg.display[3] = ;
+    // pose_msg.display[4] = ;
 
 
     // Light front LED solid to indicate connected
@@ -304,7 +279,37 @@ void loop()
     /* #region ------------------------------------------------BEHAVIOR----------------------------------------------------------------------*/
 
     Robot.decision(event); // decides the overall state of the robot (wandering, tracking, etc.)
+    Robot.nextStep(event); // decides the overall state of the robot (wandering, tracking, etc.)
+    int * vels;
+    vels = Robot.controlLaw();
+    int vel = *vels, ang_vel = *(vels+1);
 
+    timer++;
+
+    if(timer>0 && timer<=50){
+        Serial.print("forward");  Serial.println("\t");
+        Robot.driveWheel('R','F',100);
+        Robot.driveWheel('L','F',100);
+    }
+    else if(timer>50 && timer<=100){
+        Serial.print("left");  Serial.println("\t");
+        Robot.driveWheel('R','F',100);
+        Robot.driveWheel('L','B',100);
+    }
+    else if(timer>100 && timer<=150){
+        Serial.print("backward");  Serial.println("\t");
+        Robot.driveWheel('R','B',100);
+        Robot.driveWheel('L','B',100);
+    }
+    else if(timer>150 && timer<=200){
+        Serial.print("right");  Serial.println("\t");
+        Robot.driveWheel('R','B',100);
+        Robot.driveWheel('L','F',100);
+    }
+    else if(timer>200){ 
+        Serial.println("");
+        timer = 0;
+    }
 
     /* #endregion */
     /* #region -------------------------------------------------EXTRAS-----------------------------------------------------------------------*/
@@ -375,7 +380,7 @@ void adminCommands(char *cmd)
         Serial.println(event);
     }
     else if (cmd[5] == 'p' && cmd[6] == 'o' && cmd[7] == 'r' && cmd[8] == 't')
-    { // "state/"
+    { // "port/"
         Serial.println(serverPort);
     }
     else
