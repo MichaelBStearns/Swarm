@@ -12,6 +12,21 @@
 #define motorL_for D8
 #define motorL_back D9
 
+//odometry information
+#define ticks_per_rev 20
+#define wheel_diam 63  //mm
+#define wheelbase 94  //mm
+#define pi 3.14159265
+#define rpm_convert 6000
+
+double theta, phi = 0.0;
+double time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R, delta_t_L = 0.0;
+double omega_left, omega_right = 0.0;
+double v_center, v_right, v_left = 0.0;
+double revL, revR = 0.0;
+int countR, countL = 0;
+double x_prime, x, y_prime, y, theta_prime = 0.0;
+
 struct Location{
     int x, y, z;            // position
     int gx, gy;             // grid position
@@ -66,7 +81,21 @@ class ant{
         void getOdom(int left, int right){
             // right = velocity of right wheel, left = velocity of left wheel
             // talked about control in lecture
-
+            v_center = (right + left)/2; //linear velocity of robot center
+            phi = (right - left)/wheelbase; //calculates yaw
+            theta_prime = theta + phi; 
+            if (theta_prime >= 2*pi){  //adjust theta_prime so that it is between 0 and 2pi
+                while(theta_prime > 2*pi){
+                    theta_prime = theta_prime - 2*pi;
+                }
+            } else if (theta_prime < 0){
+                while(theta_prime < 0){
+                    theta_prime = theta_prime + 2*pi;
+                }
+            }
+            x_prime = x + v_center*cos(theta); //new x pos from old x
+            y_prime = y + v_center*sin(theta); //new y pos from old y
+            theta = theta_prime; //update pose angle
             euler_to_quarternion();
         }
         
@@ -147,7 +176,23 @@ class ant{
 
 #endif
 
+void read_encR(){ //maintain encoder tick right wheel counts
+    countR = countR + 1;
+    time_nowR = millis(); 
+    delta_t_R = time_nowR-time_previousR;
+    time_previousR = time_nowR;
+    v_right = countR /(rpm_convert * delta_t_R); //linear velocity left wheel
+    countL = 0;
+}
 
+void read_encL(){ //maintain encoder tick left wheel counts
+    countL = countL + 1;
+    time_nowL = millis(); 
+    delta_t_L = time_nowL-time_previousL;
+    time_previousL = time_nowL;
+    v_left = countL /(rpm_convert * delta_t_L); //linear velocity left wheel
+    countL = 0;
+}
 
 // For passing structs into functions
 // void data(Location *currentLoc) {
