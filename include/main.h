@@ -26,15 +26,25 @@ struct Location{
 class ant{
 
     public:
-        const int   width=93, height=9, diameter=65,    // mm (wheel center to center, IR to ground, wheel)
+        const int   width=94, height=9, diameter=65,    // mm (wheel center to center, IR to ground, wheel)
                     l=width/2, radius=diameter/2, 
                     gridWidth = 200, gridHeight = gridWidth, 
                     squareWidth = sizeof(world)/ gridWidth, squareHeight = squareWidth,
-                    k_rho = 2, k_alpha = 15, k_beta = -8;    // control coefficients
+                    k_rho = 2, k_alpha = 15, k_beta = -8,			// control coefficients
+										rpm_convert = 6000, ticks_per_rev 20;    
         int id, velocity, rightOld=-1, leftOld=-1,
             vel = 0, ang_vel = 0,
-            d_x, d_y, theta; 
-
+            d_x, d_y, theta,
+						countR, countL = 0; 
+	
+				double 	theta, phi = 0.0,
+								time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R, delta_t_L = 0.0,
+								omega_left, omega_right = 0.0,
+								v_center, v_right, v_left = 0.0,	
+								revL, revR = 0.0,
+								x_prime, x, y_prime, y, theta_prime = 0.0;
+									
+									
         bool active;    //pheromones
         struct Location currentLoc, desiredLoc;
         uint8_t currentPher[5], prevPher[5]; 
@@ -92,7 +102,22 @@ class ant{
         void getOdom(int left, int right){
             // right = velocity of right wheel, left = velocity of left wheel
             // talked about control in lecture
-            // TODO: way to detect if on the ground?
+
+            v_center = (right + left)/2; //linear velocity of robot center
+            phi = (right - left)/wheelbase; //calculates yaw
+            theta_prime = theta + phi; 
+            if (theta_prime >= 2*PI){  //adjust theta_prime so that it is between 0 and 2pi
+                while(theta_prime > 2*PI){
+                    theta_prime = theta_prime - 2*PI;
+                }
+            } else if (theta_prime < 0){
+                while(theta_prime < 0){
+                    theta_prime = theta_prime + 2*PI;
+                }
+            }
+            x_prime = x + v_center*cos(theta); //new x pos from old x
+            y_prime = y + v_center*sin(theta); //new y pos from old y
+            theta = theta_prime; //update pose angle
 
             euler_to_quarternion();
         }
@@ -268,7 +293,23 @@ class ant{
 
 #endif
 
+void read_encR(){ //maintain encoder tick right wheel counts
+    countR = countR + 1;
+    time_nowR = millis(); 
+    delta_t_R = time_nowR-time_previousR;
+    time_previousR = time_nowR;
+    v_right = countR /(rpm_convert * delta_t_R); //linear velocity left wheel
+    countL = 0;
+}
 
+void read_encL(){ //maintain encoder tick left wheel counts
+    countL = countL + 1;
+    time_nowL = millis(); 
+    delta_t_L = time_nowL-time_previousL;
+    time_previousL = time_nowL;
+    v_left = countL /(rpm_convert * delta_t_L); //linear velocity left wheel
+    countL = 0;
+}
 
 // For passing structs into functions
 // void data(Location *currentLoc) {
