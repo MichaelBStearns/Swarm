@@ -82,15 +82,16 @@ ros::NodeHandle nh;
 // Make a chatter publisher
 // std_msgs::String str_msg;
 swarm_msgs::Plus pose_msg; // TODO custom message?
+swarm_msgs::Plus pose_msg_prev;
 void sub_msg(const swarm_msgs::Grid& msg){
-    Robot.currentPher[0] = msg.column[Robot.currentLoc.Pos.x].row[Robot.currentLoc.Pos.y].pheromones[0];
-    Robot.currentPher[1] = msg.column[Robot.currentLoc.Pos.x].row[Robot.currentLoc.Pos.y].pheromones[1];
-    Robot.currentPher[2] = msg.column[Robot.currentLoc.Pos.x].row[Robot.currentLoc.Pos.y].pheromones[2];
-    Robot.currentPher[3] = msg.column[Robot.currentLoc.Pos.x].row[Robot.currentLoc.Pos.y].pheromones[3];
-    Robot.currentPher[4] = msg.column[Robot.currentLoc.Pos.x].row[Robot.currentLoc.Pos.y].pheromones[4];
-    // Serial.println(msg.column);
-    // Serial.println("Pheromone!");
+    // read pheromones in the robot's current square
+    Robot.currentPher[0] = msg.column[(int)Robot.currentLoc.Grid.x].row[(int)Robot.currentLoc.Grid.y].pheromones[0];
+    Robot.currentPher[1] = msg.column[(int)Robot.currentLoc.Grid.x].row[(int)Robot.currentLoc.Grid.y].pheromones[1];
+    Robot.currentPher[2] = msg.column[(int)Robot.currentLoc.Grid.x].row[(int)Robot.currentLoc.Grid.y].pheromones[2];
+    Robot.currentPher[3] = msg.column[(int)Robot.currentLoc.Grid.x].row[(int)Robot.currentLoc.Grid.y].pheromones[3];
+    Robot.currentPher[4] = msg.column[(int)Robot.currentLoc.Grid.x].row[(int)Robot.currentLoc.Grid.y].pheromones[4];
 }
+
 ros::Publisher chatter("/Pheromones_Write", &pose_msg);
 ros::Subscriber<swarm_msgs::Grid> sub("/Pheromones_Read", &sub_msg);
 
@@ -99,7 +100,7 @@ float smell, viewDist, right, left, Hz;
 bool lightTog = false;
 int timeout = 0, *wheels, timer = 0;
 byte address = 41; // address 0x29
-String event, name = BUILD_ENV_NAME;
+String state = "ROAM";  // "ROAM", "FOUND_FOOD", "GET_HELP", "FOLLOW_TRAIL"
 char cmd[10];
 
 void adminCommands(char *cmd);
@@ -110,7 +111,7 @@ void setup()
     Serial.begin(74880);
     Serial.println("");
     Serial.print("Hello World! I am ");
-    Serial.println(name);
+    Serial.println(Robot.name);
     Serial.println("");
 
     // Wait until user is ready
@@ -183,19 +184,19 @@ void loop()
     right = digitalRead(ENC_PIN_R);
     left = map(analogRead(ENC_PIN_L), 1, 1024, 0, 1);
 
-
-    Robot.setOdom(left, right);
-
-    
-    // Serial.print(viewDist); Serial.print("\t");
-    // Serial.print(smell); Serial.print("\t");
-    // Serial.print(right); Serial.print("\t"); 
-    // Serial.print(left); Serial.print("\t");
+    Robot.getOdom(left, right);
 
     /* #endregion */
     /* #region ----------------------------------------------CALCULATIONS--------------------------------------------------------------------*/
 
-    
+    // convert pos in mm to grid pos
+    Coords grid = Robot.pos_to_Grid(Robot.currentLoc.Pos.x, Robot.currentLoc.Pos.y);
+    Robot.currentLoc.Pos.x = grid.x;
+    Robot.currentLoc.Pos.y = grid.y;
+
+    Robot.euler_to_quarternion();
+
+    Robot.avoidObstacle(viewDist);
 
     // if(*wheels >= 0){
     //     analogWrite(motorR_for, *wheels);
@@ -219,11 +220,31 @@ void loop()
     /* #endregion */
     /* #region ---------------------------------------------ROS-CONNECTION-------------------------------------------------------------------*/
 
+    pose_msg.pose.position.x = Robot.currentLoc.Pos.x;
+    pose_msg.pose.position.y = Robot.currentLoc.Pos.y;
+    pose_msg.pose.orientation.x = Robot.currentLoc.qx;
+    pose_msg.pose.orientation.y = Robot.currentLoc.qy;
+    pose_msg.pose.orientation.z = Robot.currentLoc.qz;
+    pose_msg.pose.orientation.w = Robot.currentLoc.qw;
+    pose_msg.header.frame_id = Robot.name.c_str();         // convert to const char* bc c++ doesn't do strings
+    pose_msg.pheromone = Robot.active;               // pheromone activation
+    pose_msg.state = state.c_str();                  // state of robot for reference
+    // pose_msg.display[0] = ;                       //if anything to display wirelessly (bugfixing)
+    // pose_msg.display[1] = ;
+    // pose_msg.display[2] = ;
+    // pose_msg.display[3] = ;
+    // pose_msg.display[4] = ;
+
+
+    // TODO: overload operator for: Plus != Plus
+    // if((pose_msg.pose.position.x != pose_msg_prev.pose.position.x) && (pose_msg.pose.position.y != pose_msg_prev.pose.position.y))}
+    // pose_msg_prev = pose_msg;
+
+
     // if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
     //     chatter.publish(&pose_msg);
     //     digitalWrite(LED1_PIN, false);
     //     digitalWrite(LED2_PIN, true);
-
     // }
     // else if (WiFi.status() != WL_CONNECTED){                // not connected to network
     //     Serial.print("DISCONNECTED FROM ");  Serial.println(ssid);
@@ -257,87 +278,49 @@ void loop()
     //     Serial.println("");
     // }
 
-    pose_msg.pose.position.x = Robot.currentLoc.Pos.x;
-    pose_msg.pose.position.y = Robot.currentLoc.Pos.y;
-    pose_msg.pose.orientation.x = Robot.currentLoc.qx;
-    pose_msg.pose.orientation.y = Robot.currentLoc.qy;
-    pose_msg.pose.orientation.z = Robot.currentLoc.qz;
-    pose_msg.pose.orientation.w = Robot.currentLoc.qw;
-    pose_msg.header.frame_id = name.c_str();         // convert to const char* bc c++ doesn't do strings
-    pose_msg.pheromone = Robot.active;               // pheromone activation
-    pose_msg.state = event.c_str();                  // state of robot for reference
-    // pose_msg.display[0] = ;                       //if anything to display wirelessly (bugfixing)
-    // pose_msg.display[1] = ;
-    // pose_msg.display[2] = ;
-    // pose_msg.display[3] = ;
-    // pose_msg.display[4] = ;
-
-
-    // Light front LED solid to indicate connected
-
     /* #endregion */
     /* #region ------------------------------------------------BEHAVIOR----------------------------------------------------------------------*/
 
-    Robot.decision(event); // decides the overall state of the robot (wandering, tracking, etc.)
-    Robot.nextStep(event); // decides the overall state of the robot (wandering, tracking, etc.)
-    int * vels;
-    vels = Robot.controlLaw();
+    // Robot.decision(state); // decides the overall state of the robot (wandering, tracking, etc.)
+
+    Robot.nextStep(state); // decides how to decide desired location
+    int * vels = Robot.controlLaw();
     int vel = *vels, ang_vel = *(vels+1);
 
-    timer++;
-
-    if(timer>0 && timer<=50){
-        Serial.print("forward");  Serial.println("\t");
-        Robot.driveWheel('R','F',100);
-        Robot.driveWheel('L','F',100);
-    }
-    else if(timer>50 && timer<=100){
-        Serial.print("left");  Serial.println("\t");
-        Robot.driveWheel('R','F',100);
-        Robot.driveWheel('L','B',100);
-    }
-    else if(timer>100 && timer<=150){
-        Serial.print("backward");  Serial.println("\t");
-        Robot.driveWheel('R','B',100);
-        Robot.driveWheel('L','B',100);
-    }
-    else if(timer>150 && timer<=200){
-        Serial.print("right");  Serial.println("\t");
-        Robot.driveWheel('R','B',100);
-        Robot.driveWheel('L','F',100);
-    }
-    else if(timer>200){ 
-        Serial.println("");
-        timer = 0;
-    }
+    // timer++;
+    // if(timer>0 && timer<=50){
+    //     Serial.print("forward");  Serial.println("\t");
+    //     Robot.driveWheel('R','F',100);
+    //     Robot.driveWheel('L','F',100);
+    // }
+    // else if(timer>50 && timer<=100){
+    //     Serial.print("left");  Serial.println("\t");
+    //     Robot.driveWheel('R','F',100);
+    //     Robot.driveWheel('L','B',100);
+    // }
+    // else if(timer>100 && timer<=150){
+    //     Serial.print("backward");  Serial.println("\t");
+    //     Robot.driveWheel('R','B',100);
+    //     Robot.driveWheel('L','B',100);
+    // }
+    // else if(timer>150 && timer<=200){
+    //     Serial.print("right");  Serial.println("\t");
+    //     Robot.driveWheel('R','B',100);
+    //     Robot.driveWheel('L','F',100);
+    // }
+    // else if(timer>200){ 
+    //     Serial.println("");
+    //     timer = 0;
+    // }
 
     /* #endregion */
     /* #region -------------------------------------------------EXTRAS-----------------------------------------------------------------------*/
-
-    // for(int i=0; i <= 5;i++){  
-    //     if(i % 2 == 0){
-    //         analogWrite(motorL_for, 100);
-    //         analogWrite(motorL_back, 0);
-    //         Serial.print("forward");
-    //     }
-    //     else if(i % 2 == 1){
-    //         analogWrite(motorL_for, 0);
-    //         analogWrite(motorL_back, 100);
-    //         Serial.print("backward");
-    //     }
-    //     delay(2000);
-    // }
-
-
-
 
     // Serial.print(rightVel); Serial.print("\t");
     // Serial.print(leftVel); Serial.print("\t");
     // Serial.print(smell); Serial.print("us\t");
     // Serial.print(viewDist); Serial.println("mm\t");
 
-    // nh.spinOnce();
-    // Loop exproximativly at 10Hz
 
     if (Serial.available())
     { // read input serial to see if command is typed
@@ -355,6 +338,21 @@ void loop()
     }
     /* #endregion */
     /* #region ---------------------------------------------------END------------------------------------------------------------------------*/
+    
+    Serial.print(Robot.currentLoc.Pos.x); Serial.print("\t");
+    Serial.print(Robot.currentLoc.Pos.y); Serial.print("\t");
+    Serial.print(sizeof(Robot.world.column[0])); Serial.print("\t");
+    Serial.print(state); Serial.print("\t");
+    // Serial.print(viewDist); Serial.print("\t");
+    // Serial.print(smell); Serial.print("\t");
+    // Serial.print(right); Serial.print("\t"); 
+    // Serial.print(left); Serial.print("\t");
+
+    Serial.println("");
+
+
+
+    // Loop exproximativly at 10Hz
     delay(100);
     // nh.spinOnce();
 }
@@ -369,7 +367,7 @@ void adminCommands(char *cmd)
     }
     else if (cmd[5] == 'n' && cmd[6] == 'a' && cmd[7] == 'm' && cmd[8] == 'e')
     { // "name/"
-        Serial.println(name);
+        Serial.println(Robot.name);
     }
     else if (cmd[5] == 'r' && cmd[6] == 's' && cmd[7] == 's' && cmd[8] == 'i')
     { // "rssi/"
@@ -377,7 +375,7 @@ void adminCommands(char *cmd)
     }
     else if (cmd[4] == 's' && cmd[5] == 't' && cmd[6] == 'a' && cmd[7] == 't' && cmd[8] == 'e')
     { // "state/"
-        Serial.println(event);
+        Serial.println(state);
     }
     else if (cmd[5] == 'p' && cmd[6] == 'o' && cmd[7] == 'r' && cmd[8] == 't')
     { // "port/"
