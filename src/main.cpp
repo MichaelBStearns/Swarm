@@ -140,6 +140,9 @@ void setup()
     pinMode(ENC_PIN_R, INPUT);
     pinMode(ENC_PIN_L, INPUT);
 
+    attachInterrupt(digitalPinToInterrupt(ENC_PIN_L), read_encR, FALLING);
+    attachInterrupt(digitalPinToInterrupt(ENC_PIN_R), read_encL, FALLING);
+
     // Connect the ESP8266 the the wifi AP
     // WiFi.begin(ssid, password);
     // while (WiFi.status() != WL_CONNECTED && timeout <= 60)
@@ -404,6 +407,24 @@ void adminCommands(char *cmd)
         // }
     }
     Serial.read();
+}
+
+void read_encL(){ //maintain encoder tick left wheel counts
+    Robot.countL = Robot.countL + 1;
+    Robot.time_nowL = millis(); 
+    Robot.delta_t_L = Robot.time_nowL-Robot.time_previousL;
+    Robot.time_previousL = Robot.time_nowL;
+    Robot.v_left = Robot.countL /(Robot.rpm_convert * Robot.delta_t_L); //linear velocity left wheel
+    Robot.countL = 0;
+}
+
+void read_encR(){ //maintain encoder tick right wheel counts
+    Robot.countR = Robot.countR + 1;
+    Robot.time_nowR = millis(); 
+    Robot.delta_t_R = Robot.time_nowR-Robot.time_previousR;
+    Robot.time_previousR = Robot.time_nowR;
+    Robot.v_right = Robot.countR /(Robot.rpm_convert * Robot.delta_t_R); //linear velocity right wheel
+    Robot.countL = 0;
 }
 
 
