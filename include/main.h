@@ -32,6 +32,7 @@ class ant{
                     gridWidth = 2000, gridHeight = gridWidth, 
                     squareWidth = gridWidth / 25, squareHeight = squareWidth,
                     k_rho = 2, k_alpha = 15, k_beta = -8,			// control coefficients
+
 					rpm_convert = 6000, ticks_per_rev = 20;
         const String name = BUILD_ENV_NAME;
 
@@ -39,6 +40,7 @@ class ant{
             vel = 0, ang_vel = 0,
             d_x, d_y,
 			countR, countL = 0; 
+
 	
 		double 	theta, phi = 0.0,       //rads
                 time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R, delta_t_L = 0.0,
@@ -321,27 +323,11 @@ class ant{
             currentLoc.Pos.y = currentLoc.Grid.y * squareHeight;
         }
 
-        void read_encR(){ //maintain encoder tick right wheel counts
-            countR = countR + 1;
-            time_nowR = millis(); 
-            delta_t_R = time_nowR-time_previousR;
-            time_previousR = time_nowR;
-            v_right = countR /(rpm_convert * delta_t_R); //linear velocity left wheel
-            countL = 0;
-        }
-
-        void read_encL(){ //maintain encoder tick left wheel counts
-            countL = countL + 1;
-            time_nowL = millis(); 
-            delta_t_L = time_nowL-time_previousL;
-            time_previousL = time_nowL;
-            v_left = countL /(rpm_convert * delta_t_L); //linear velocity left wheel
-            countL = 0;
-        }
-
 };
 
+
 #endif
+
 
 
 // For passing structs into functions
