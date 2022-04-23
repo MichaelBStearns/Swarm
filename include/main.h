@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <String.h>
 #include <swarm_msgs/Grid.h>
+#include <swarm_msgs/Grid.h>
 // #include <main.cpp>
 
 // Motor Control
@@ -13,14 +14,14 @@
 #define motorL_back D9
 
 struct Coords{
-    int x, y;
+    double x, y;
 };
 
 struct Location{
     Coords Pos;             // position
     Coords Grid;            // grid position
-    int roll, pitch, yaw;   // euler
-    int qx, qy, qz, qw;     // quarternion
+    double roll, pitch, yaw;   // euler
+    double qx, qy, qz, qw;     // quarternion
 };
 
 class ant{
@@ -28,30 +29,35 @@ class ant{
     public:
         const int   width=94, height=9, diameter=65,    // mm (wheel center to center, IR to ground, wheel)
                     l=width/2, radius=diameter/2, 
-                    gridWidth = 200, gridHeight = gridWidth, 
-                    squareWidth = sizeof(world)/ gridWidth, squareHeight = squareWidth,
+                    gridWidth = 2000, gridHeight = gridWidth, 
+                    squareWidth = gridWidth / 25, squareHeight = squareWidth,
                     k_rho = 2, k_alpha = 15, k_beta = -8,			// control coefficients
-					rpm_convert = 6000, ticks_per_rev = 20;    
+
+					rpm_convert = 6000, ticks_per_rev = 20;
+        const String name = BUILD_ENV_NAME;
+
         int id, velocity, rightOld=-1, leftOld=-1,
             vel = 0, ang_vel = 0,
             d_x, d_y,
-						countR, countL = 0; 
+			countR, countL = 0; 
+
 	
-				double 	theta, phi = 0.0,
-								time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R, delta_t_L = 0.0,
-								omega_left, omega_right = 0.0,
-								v_center, v_right, v_left = 0.0,	
-								revL, revR = 0.0,
-								x_prime, x, y_prime, y, theta_prime = 0.0;
+		double 	theta, phi = 0.0,       //rads
+                time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R, delta_t_L = 0.0,
+                omega_left, omega_right = 0.0,
+                v_center, v_right, v_left = 0.0,	
+                revL, revR = 0.0,
+                x_prime, x, y_prime, y, theta_prime = 0.0;
 									
 									
-        bool active;    //pheromones
+        bool active = false;    //pheromones
         struct Location currentLoc, desiredLoc;
         uint8_t currentPher[5], prevPher[5]; 
         swarm_msgs::Grid world;   // same as Grid being sent
+        Coords path[30];
 
         ant(){
-            currentLoc = {  0,0,
+            currentLoc = {  double(squareWidth), double(squareHeight),
                             0,0,
                             0,0,0,
                             0,0,0,0};
@@ -83,13 +89,14 @@ class ant{
                 randomSearch();
             }
             else if(state == "FOUND_FOOD"){     // located goal, see if anyone else has been there, if not: get help, if so: wait
-                
+                firstToFind();
             }
             else if(state == "GET_HELP"){   // go back to start & leave pheromones
-                
+                desiredLoc.Pos.x = double(squareWidth);
+                desiredLoc.Pos.y = double(squareHeight);
             }
             else if(state == "FOLLOW_TRAIL"){   //found pheromones, follow it back to food
-                //
+                
             }
             else if(state == ""){
 
@@ -99,9 +106,13 @@ class ant{
             }
         }
 
+        void stepRestrictions(void){    // make sure robot doesnt want to go out of bounds or into a wall
+
+
+        }
+
         void getOdom(int left, int right){
             // right = velocity of right wheel, left = velocity of left wheel
-            // talked about control in lecture
 
             v_center = (right + left)/2; //linear velocity of robot center
             phi = (right - left)/width; //calculates yaw
@@ -121,10 +132,31 @@ class ant{
 
             euler_to_quarternion();
         }
-        
-        void setOdom(int left, int right){
+
+        int * controlLaw(void){
+            if(k_alpha + (5/3)*k_beta - (2/PI)*k_rho <= 0){
+                try{throw "NO ROBUST STABILITY";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
+            }
+            int threshold = 0.01;
             
+            d_x = desiredLoc.Pos.x - currentLoc.Pos.x, 
+            d_y = desiredLoc.Pos.y - currentLoc.Pos.y,
+            theta = currentLoc.yaw; 
+
+            int rho = sqrt((d_x)^2+(d_y)^2);
+            int alpha = -theta + atan2(d_y, d_x);
+            int beta = -theta - alpha;      
+            // int beta = -alpha;      // make just -alpha so doesnt have to correct orientation?
             
+            vel = k_rho*rho;
+            ang_vel = k_alpha*alpha+k_beta*beta;
+
+            if ((abs(d_x)+abs(d_y)+abs(theta)) > threshold){
+                
+            }
+
+            int output[] = {vel, ang_vel};
+            return output;
         }
 
         void driveWheel(char wheel, char dir, int pwm){
@@ -145,16 +177,9 @@ class ant{
                 analogWrite(motorL_back, pwm);
             }
         }
-
-        void setPheromone(bool active){
-            // based on position, send to 'world' node
-            // if(active = true){special phereomones indicating they've found food}
-        }
-        
-        
+             
         void randomSearch(void){
             // wander around, avoid hitting walls
-            setPheromone(false);
             
             int choice = random(1,100);
             uint8_t weights[] = {0, 10, 20, 31, 20, 10, 4, 4, 1}; //toal 100
@@ -165,7 +190,7 @@ class ant{
                 weightsums[i] = weights[i] + weightsums[i-1];
             }
             if(weightsums[8] != 100){
-                try{throw "WEIGHTS DON'T TOTAL 1";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
+                try{throw "WEIGHTS DON'T TOTAL 100";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
             }
 
         /*  -------------
@@ -175,7 +200,7 @@ class ant{
             -------------
             | 6 | 7 | 8 |
             -------------   */
-
+            // TODO dont choose it if == 'N'
             if(choice >= 0 && choice <= weightsums[0]){                     // C
                 desiredLoc.Grid.x = currentLoc.Grid.x + 0;
                 desiredLoc.Grid.y = currentLoc.Grid.y + 0;
@@ -214,42 +239,37 @@ class ant{
                 }
         }
 
-        int * controlLaw(void){
-            if(k_alpha + (5/3)*k_beta - (2/PI)*k_rho <= 0){
-                try{throw "NO ROBUST STABILITY";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
+        bool firstToFind(void){
+            bool first;
+            // if another bot has pheromones already there
+            if(name == "Blue" && (currentPher[1] || currentPher[2] || currentPher[3] || currentPher[4])){ 
+                first = false;
             }
-            int threshold = 0.01;
-            
-            d_x = desiredLoc.Pos.x - currentLoc.Pos.x, 
-            d_y = desiredLoc.Pos.y - currentLoc.Pos.y,
-            theta = currentLoc.yaw; 
-
-            int rho = sqrt(d_x^(2)+d_y^(2));
-            int alpha = -theta + atan2(d_y, d_x);
-            int beta = -theta - alpha;      
-            // int beta = -alpha;      // make just -alpha so doesnt have to correct orientation?
-            
-            vel = k_rho*rho;
-            ang_vel = k_alpha*alpha+k_beta*beta;
-
-            if ((abs(d_x)+abs(d_y)+abs(theta)) > threshold){
-                
+            else if(name == "Charlie" && (currentPher[0] || currentPher[2] || currentPher[3] || currentPher[4])){
+                first = false;
             }
-
-
-
-
-            int output[] = {vel, ang_vel};
-            return output;
+            else if(name == "Delta" && (currentPher[0] || currentPher[1] || currentPher[3] || currentPher[4])){
+                first = false;
+            }
+            else if(name == "Echo" && (currentPher[0] || currentPher[1] || currentPher[2] || currentPher[4])){
+                first = false;
+            }
+            else if(name == "Foxtrot" && (currentPher[0] || currentPher[1] || currentPher[2] || currentPher[3])){
+                first = false;
+            }
+            else{
+                first = true;
+            }
+            return first;
         }
 
         void findHelp(void){
-            setPheromone(true);
+            active = true;
             // drive back to start, setting 'active' pheromones along the way
 
         }
 
-        double ReadIR(int sensor){  //sends a signal with the IR sensor then detects how long it takes to come back
+        bool ReadIR(int sensor){  //sends a signal with the IR sensor then detects how long it takes to come back
             pinMode(sensor, OUTPUT );
             digitalWrite(sensor, HIGH);
             delayMicroseconds(10);
@@ -272,6 +292,17 @@ class ant{
 
         }
 
+        void locateObstacle(int distance){
+            if(distance <= 3000){                   // if there's an obstacle to avoid (TODO find real threshold)
+                // int squareCenterX = currentLoc.Grid.x * squareWidth - squareWidth/2;        //get center of grid square currently in
+                // int squareCenterY = currentLoc.Grid.y * squareHeight - squareHeight/2;
+                int obstacleX = distance * cos(currentLoc.yaw);
+                int obstacleY = distance * sin(currentLoc.yaw);
+                struct Coords pos = pos_to_Grid(obstacleX, obstacleY);
+                world.column[int(pos.x)].row[int(pos.x)].pheromones[0] = 'N';   // indicates obstacle
+            }
+        }
+
         void euler_to_quarternion(void){    // converts euler in Location struct to quarternion in Location struct
             currentLoc.qw = cos(currentLoc.roll) * cos(currentLoc.pitch) * cos(currentLoc.qy) - sin(currentLoc.roll) * sin(currentLoc.pitch) * sin(currentLoc.qy);
             currentLoc.qx = sin(currentLoc.roll) * sin(currentLoc.pitch) * cos(currentLoc.yaw) + cos(currentLoc.roll) * cos(currentLoc.pitch) * sin(currentLoc.yaw);
@@ -279,15 +310,19 @@ class ant{
             currentLoc.qz = cos(currentLoc.roll) * sin(currentLoc.pitch) * cos(currentLoc.yaw) - sin(currentLoc.roll) * cos(currentLoc.pitch) * sin(currentLoc.yaw);
         }
 
-        void pos_to_Grid(void){     //calculates which grid square the robot is in based on position
-            currentLoc.Grid.x = currentLoc.Pos.x / squareWidth;
-            currentLoc.Grid.y = currentLoc.Pos.y / squareHeight;
+        Coords pos_to_Grid(double x, double y){     //calculates which grid square the robot is in based on position
+            struct Coords pos;
+            pos.x = ceil(x / squareWidth);
+            pos.y = ceil(y / squareHeight);
+
+            return pos;
         }
 
         void grid_to_Pos(void){     //calculates which grid square the robot is in based on position
             currentLoc.Pos.x = currentLoc.Grid.x * squareWidth;
             currentLoc.Pos.y = currentLoc.Grid.y * squareHeight;
         }
+
 };
 
 
