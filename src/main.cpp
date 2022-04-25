@@ -49,7 +49,7 @@ Links:
 #include <VL53L0X.h>
 #include <string>
 #include <main.h>
-
+      
 #define LED1_PIN D0             // D0 and D4 are the built in LEDs
 // #define LED2_PIN D4
 
@@ -102,6 +102,7 @@ int timeout = 0, *wheels, timer = 0;
 byte address = 41; // address 0x29
 String state = "ROAM";  // "ROAM", "FOUND_FOOD", "GET_HELP", "FOLLOW_TRAIL"
 char cmd[10];
+struct Coords vels;
 
 void adminCommands(char *cmd);
 void IRAM_ATTR read_encL(void);
@@ -143,15 +144,15 @@ void setup()
     pinMode(motorR_for, OUTPUT);
     pinMode(motorR_back, OUTPUT);
     
-    // pinMode(ENC_PIN_R, INPUT);
-    // pinMode(ENC_PIN_L, INPUT);
+    pinMode(ENC_PIN_R, INPUT);
+    pinMode(ENC_PIN_L, INPUT);
 
-    // attachInterrupt(digitalPinToInterrupt(ENC_PIN_L), read_encL, FALLING);
-    // attachInterrupt(digitalPinToInterrupt(ENC_PIN_R), read_encR, FALLING);
+    attachInterrupt(digitalPinToInterrupt(ENC_PIN_L), read_encL, FALLING);
+    attachInterrupt(digitalPinToInterrupt(ENC_PIN_R), read_encR, FALLING);
 
     // Connect the ESP8266 the the wifi AP
     WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED && timeout <= 60)
+    while (WiFi.status() != WL_CONNECTED && timeout <= 10)
     {
         timeout++;
         delay(500);
@@ -186,7 +187,7 @@ void loop()
     {try{throw "LIDAR TIMEOUT";} catch (int E){Serial.print("AN EXCEPTION WAS THROWN: ");Serial.print(E);}} // throw exception
 
     Robot.viewDist = sensor.readRangeContinuousMillimeters(); // gives Lidar distance in mm
-    // scent = Robot.ReadIR(FOOD_PIN);                     // returns true if food found, returns false if not
+    scent = Robot.ReadIR(FOOD_PIN);                     // returns true if food found, returns false if not
 
     // right = digitalRead(ENC_PIN_R);
     // left = map(analogRead(ENC_PIN_L), 1, 1024, 0, 1);
@@ -227,25 +228,25 @@ void loop()
     /* #endregion */
     /* #region ---------------------------------------------ROS-CONNECTION-------------------------------------------------------------------*/
 
-    // pose_msg.pose.position.x = Robot.currentLoc.Pos.x;      // std_msgs/Pose (minus z)
-    // pose_msg.pose.position.y = Robot.currentLoc.Pos.y;
-    // pose_msg.pose.orientation.x = Robot.currentLoc.qx;
-    // pose_msg.pose.orientation.y = Robot.currentLoc.qy;
-    // pose_msg.pose.orientation.z = Robot.currentLoc.qz;
-    // pose_msg.pose.orientation.w = Robot.currentLoc.qw;
-    // pose_msg.header.frame_id = Robot.name.c_str();          // Robot name (convert to const char* bc c++ doesn't do strings)
-    // pose_msg.pheromone = Robot.active;                      // pheromone activation
-    // pose_msg.state = state.c_str();                         // state of robot for reference
-    // // pose_msg.display[0] = ;                              // if anything to display wirelessly (bugfixing)
-    // // pose_msg.display[1] = ;
-    // // pose_msg.display[2] = ;
-    // // pose_msg.display[3] = ;
-    // // pose_msg.display[4] = ;
+    pose_msg.pose.position.x = Robot.currentLoc.Pos.x;      // std_msgs/Pose (minus z)
+    pose_msg.pose.position.y = Robot.currentLoc.Pos.y;
+    pose_msg.pose.orientation.x = Robot.currentLoc.qx;
+    pose_msg.pose.orientation.y = Robot.currentLoc.qy;
+    pose_msg.pose.orientation.z = Robot.currentLoc.qz;
+    pose_msg.pose.orientation.w = Robot.currentLoc.qw;
+    pose_msg.header.frame_id = Robot.name.c_str();          // Robot name (convert to const char* bc c++ doesn't do strings)
+    pose_msg.pheromone = Robot.active;                      // pheromone activation
+    pose_msg.state = state.c_str();                         // state of robot for reference
+    // pose_msg.display[0] = ;                              // if anything to display wirelessly (bugfixing)
+    // pose_msg.display[1] = ;
+    // pose_msg.display[2] = ;
+    // pose_msg.display[3] = ;
+    // pose_msg.display[4] = ;
 
 
-    // // TODO: overload operator for: Plus != Plus
-    // // if((pose_msg.pose.position.x != pose_msg_prev.pose.position.x) && (pose_msg.pose.position.y != pose_msg_prev.pose.position.y))}
-    // // pose_msg_prev = pose_msg;
+    // TODO: overload operator for: Plus != Plus
+    // if((pose_msg.pose.position.x != pose_msg_prev.pose.position.x) && (pose_msg.pose.position.y != pose_msg_prev.pose.position.y))}
+    // pose_msg_prev = pose_msg;
 
 
     // if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
@@ -291,18 +292,20 @@ void loop()
 
     // Robot.decision(state); // decides the overall state of the robot (wandering, tracking, etc.)
 
-    if(Robot.scentFilter(scent)){
-        state = "FOUND_FOOD";
-    }
+    // if(Robot.scentFilter(scent)){
+    //     state = "FOUND_FOOD";
+    // }
+    // if(Robot.reachedGoal()){
+    //     Robot.nextStep(state); // decides how to decide desired location
+    // }
+    
+    // Robot.locateObstacle(Robot.viewDist);
 
-    Robot.nextStep(state); // decides how to decide desired location
-    Robot.locateObstacle(Robot.viewDist);
 
-    struct Coords vels;
-    vels = Robot.controlLaw();
-    int vel = vels.x;
-    int ang_vel = vels.y;
-
+    // vels = Robot.controlLaw();
+    // int vel = vels.x;
+    // int ang_vel = vels.y;
+    // Robot.moveRobot(vel, ang_vel);
 
     timer++;
     if(timer>0 && timer<=50){
@@ -336,16 +339,18 @@ void loop()
 
     Serial.print(Robot.currentLoc.Pos.x); Serial.print("\t");
     Serial.print(Robot.currentLoc.Pos.y); Serial.print("\t");
+    Serial.print(Robot.desiredLoc.Pos.x); Serial.print("\t");
+    Serial.print(Robot.desiredLoc.Pos.y); Serial.print("\t");
     // Serial.print(sizeof(Robot.world.column[0])); Serial.print("\t");
     // Serial.print(state); Serial.print("\t");    
     // Serial.print(rightVel); Serial.print("\t");
     // Serial.print(leftVel); Serial.print("\t");
     Serial.print(Robot.viewDist); Serial.print("\t");
-    Serial.print(scent); Serial .print("\t");
+    // Serial.print(scent); Serial .print("\t");
     // Serial.print(right); Serial.print("\t"); 
     // Serial.print(left); Serial.print("\t");
     // Serial.print(serverPort); Serial.print("\t");
-    Serial.print(double(Robot.squareWidth)); Serial.print("\t");
+    // Serial.print(double(Robot.squareWidth)); Serial.print("\t");
 
     Serial.println("");   
     
@@ -371,7 +376,7 @@ void loop()
     
     // Loop exproximativly at 10Hz
     delay(100);
-    nh.spinOnce();
+    // nh.spinOnce();
 }
     /* #endregion */
 
@@ -426,7 +431,7 @@ void read_encL(){ //maintain encoder tick left wheel counts
     Robot.delta_t_L = Robot.time_nowL-Robot.time_previousL;
     Robot.time_previousL = Robot.time_nowL;
     Robot.v_left = 1 / (Robot.rpm_convert * Robot.delta_t_L); //linear velocity left wheel
-    Serial.print("Left"); Serial.print("\t");
+    // Serial.print("Left"); Serial.print("\t");
 }
 
 void read_encR(){ //maintain encoder tick right wheel counts

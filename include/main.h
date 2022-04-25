@@ -40,7 +40,7 @@ class ant{
                             time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R = 0, delta_t_L = 0,
                             omega_left = 0, omega_right = 0, v_center = 0, v_right = 0, v_left = 0, revL = 0, revR = 0,
                             k_rho = 2, k_alpha = 15, k_beta = -8,		// control coefficients      
-                            IRThreshold, distThreshold = 1;	                      
+                            IRThreshold, distThreshold = 1000;	                      
         bool                active = false;    //pheromones
         uint8_t             currentPher[5], prevPher[5], scents[5]; 
         swarm_msgs::Grid    world;   // same as Grid being sent (no pheromones in obstacles so 'N' doesnt overwrite any data)
@@ -53,6 +53,13 @@ class ant{
                             0,0,0,0};
             currentLoc.Pos.x = double(squareWidth);
             currentLoc.Pos.y = double(squareWidth);
+
+            desiredLoc = {  0,0,
+                            0,0,
+                            0,0,0,
+                            0,0,0,0};
+            desiredLoc.Pos.x = double(squareWidth);
+            desiredLoc.Pos.y = double(squareWidth);
         }
 
         void decision(String state){
@@ -77,9 +84,15 @@ class ant{
         }
 
         void nextStep(String state){
-            while(avoidSpace(desiredLoc.Grid.x, desiredLoc.Grid.y)){     // loop if the chosen space needs to be avoided ('N')
+            int decision = 0;
+            
+            // Serial.print("test2");
+            while(avoidSpace(desiredLoc.Grid.x, desiredLoc.Grid.y) || decision == 0){     // loop if the chosen space needs to be avoided ('N')
                 if(state == "ROAM"){    // no food or pheromones found
-                    randomSearch();
+                    // Serial.print("test1");
+                    decision = randomSearch();
+                    Serial.print("decision:"); Serial.print(decision); Serial.print("\t");
+                    Serial.print(avoidSpace(desiredLoc.Grid.x, desiredLoc.Grid.y)); Serial.print("\t");
                 }
                 else if(state == "FOUND_FOOD"){     // located goal, see if anyone else has been there, if not: get help, if so: wait
                     active = true;
@@ -117,7 +130,7 @@ class ant{
             return (world.column[x].row[y].pheromones[0] == 'N' || x >= squaresinGrid || y >= squaresinGrid) ? true : false;
         }
 
-        void getOdom(void){
+        void getOdom(void){     // gets currentLoc info from encoders
             // right = velocity of right wheel, left = velocity of left wheel
 
             v_center = (v_left + v_right)/2; //linear velocity of robot center
@@ -139,6 +152,7 @@ class ant{
         }
 
         Coords controlLaw(void){
+            Serial.print("test1"); Serial.print("\t");
             if(k_alpha + (5/3)*k_beta - (2/PI)*k_rho <= 0){     // if coefficients are not robustly stable
                 try{throw "NO ROBUST STABILITY";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
             }
@@ -164,6 +178,34 @@ class ant{
             output.x = vel;
             output.y = ang_vel;
             return output;
+        }
+
+        void moveRobot(int vel, int ang_vel){
+            int rVel, lVel;
+            rVel = vel + (ang_vel * radius);
+            lVel = vel - (ang_vel * radius);
+            rVel = map(rVel, 0, 10, 0, 255);
+            lVel = map(lVel, 0, 10, 0, 255);
+
+
+            Serial.print("test2"); Serial.print("\t");
+            Serial.print(rVel); Serial.print("\t");
+            Serial.print(lVel); Serial.print("\t");
+
+
+            if(rVel > 0){
+                driveWheel('R','F',rVel);
+            }
+            else{
+                driveWheel('R','B',rVel);
+            }
+
+            if(lVel > 0){
+                driveWheel('L','F',lVel);
+            }
+            else{
+                driveWheel('L','B',lVel);
+            }
         }
 
         void driveWheel(char wheel, char dir, int pwm){
@@ -199,6 +241,7 @@ class ant{
             if(weightsums[8] != 100){
                 try{throw "WEIGHTS DON'T TOTAL 100";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
             }
+            // Serial.print("test3");
 
         /*  -------------
             | 4 | 3 | 2 |       ^
@@ -384,10 +427,9 @@ class ant{
             }
         }
 
-        // bool reachedGoal(void){
-        //     if(((currentLoc.Pos.x - desiredLoc.Pos.x) <= distThreshold) && ((currentLoc.Pos.y - desiredLoc.Pos.y) <= distThreshold) && ((currentLoc.Pos.x - desiredLoc.Pos.x) <= distThreshold)
-        // }
-
+        bool reachedGoal(void){
+            return(((currentLoc.Pos.x - desiredLoc.Pos.x) <= distThreshold) && ((currentLoc.Pos.y - desiredLoc.Pos.y) <= distThreshold) && ((currentLoc.Pos.x - desiredLoc.Pos.x) <= distThreshold));
+        }
 };
 
 
