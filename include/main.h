@@ -4,11 +4,10 @@
 #include <Arduino.h>
 #include <String.h>
 #include <swarm_msgs/Grid.h>
-#include <swarm_msgs/Grid.h>
 // #include <main.cpp>
 
 // Motor Control
-#define motorR_back D6
+#define motorR_back D3
 #define motorR_for D7 
 #define motorL_for D8
 #define motorL_back D9
@@ -18,43 +17,37 @@ struct Coords{
 };
 
 struct Location{
-    Coords Pos;             // position
-    Coords Grid;            // grid position
-    double roll, pitch, yaw;   // euler
-    double qx, qy, qz, qw;     // quarternion
+    Coords Pos;                 // position (mm)
+    Coords Grid;                // grid position
+    double roll, pitch, yaw;    // euler
+    double qx, qy, qz, qw;      // quarternion
 };
 
 class ant{
-
     public:
-        const int   width=94, height=9, diameter=65,    // mm (wheel center to center, IR to ground, wheel)
-                    l=width/2, radius=diameter/2, 
-                    gridWidth = 2000, gridHeight = gridWidth, 
-                    squareWidth = gridWidth / 25, squareHeight = squareWidth,
-                    k_rho = 2, k_alpha = 15, k_beta = -8,			// control coefficients
+        const int           width=94, height=9, diameter=65,    // mm (wheel center to center, IR to ground, wheel)
+                            l=width/2, radius=diameter/2, 
+                            gridWidth = 2000, gridHeight = gridWidth, 
+                            squaresinGrid = 25,
+                            squareWidth = gridWidth / squaresinGrid, squareHeight = squareWidth,
+					        rpm_convert = 6000, ticks_per_rev = 20,         // odometry coefficients
+                            distanceThreshold = 3000;                            
+        const String        name = BUILD_ENV_NAME;
 
-					rpm_convert = 6000, ticks_per_rev = 20;
-        const String name = BUILD_ENV_NAME;
-
-        int id, velocity, rightOld=-1, leftOld=-1,
-            vel = 0, ang_vel = 0,
-            d_x, d_y,
-			countR, countL = 0; 
-
-	
-		double 	theta, phi = 0.0,       //rads
-                time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R, delta_t_L = 0.0,
-                omega_left, omega_right = 0.0,
-                v_center, v_right, v_left = 0.0,	
-                revL, revR = 0.0,
-                x_prime, x, y_prime, y, theta_prime = 0.0;
-									
-									
-        bool active = false;    //pheromones
-        struct Location currentLoc, desiredLoc;
-        uint8_t currentPher[5], prevPher[5]; 
-        swarm_msgs::Grid world;   // same as Grid being sent
-        Coords path[30];
+        int                 id, velocity, rightOld=-1, leftOld=-1,
+                            vel = 0, ang_vel = 0,
+                            d_x, d_y,
+			                countR, countL = 0; 
+		double 	            theta = 0, phi = 0,               //radians
+                            time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R = 0, delta_t_L = 0,
+                            omega_left = 0, omega_right = 0, v_center = 0, v_right = 0, v_left = 0, revL = 0, revR = 0,
+                            x_prime, x, y_prime, y, theta_prime = 0.0,
+                            k_rho = 2, k_alpha = 15, k_beta = -8;			// control coefficients                            
+        bool                active = false;    //pheromones
+        struct Location     currentLoc, desiredLoc;
+        uint8_t             currentPher[5], prevPher[5]; 
+        swarm_msgs::Grid    world;   // same as Grid being sent (no pheromones in obstacles so 'N' doesnt overwrite any data)
+        Coords              path[30];
 
         ant(){
             currentLoc = {  double(squareWidth), double(squareHeight),
@@ -85,30 +78,33 @@ class ant{
         }
 
         void nextStep(String state){
-            if(state == "ROAM"){    // no food or pheromones found
-                randomSearch();
-            }
-            else if(state == "FOUND_FOOD"){     // located goal, see if anyone else has been there, if not: get help, if so: wait
-                firstToFind();
-            }
-            else if(state == "GET_HELP"){   // go back to start & leave pheromones
-                desiredLoc.Pos.x = double(squareWidth);
-                desiredLoc.Pos.y = double(squareHeight);
-            }
-            else if(state == "FOLLOW_TRAIL"){   //found pheromones, follow it back to food
-                
-            }
-            else if(state == ""){
+            int decision;
+            while(avoidSpace(desiredLoc.Grid.x, desiredLoc.Grid.y)){     // loop if the chosen space needs to be avoided
+                if(state == "ROAM"){    // no food or pheromones found
+                    decision = randomSearch();
+                }
+                else if(state == "FOUND_FOOD"){     // located goal, see if anyone else has been there, if not: get help, if so: wait
+                    firstToFind();
+                }
+                else if(state == "GET_HELP"){   // go back to start & leave pheromones
+                    desiredLoc.Pos.x = double(squareWidth);
+                    desiredLoc.Pos.y = double(squareHeight);
+                }
+                else if(state == "FOLLOW_TRAIL"){   //found stronger pheromones, follow it back to food
+                    
+                }
+                else if(state == ""){
 
+                }
+                else{   // if no state found
+                    try{throw "NO DECISION STATE FOUND";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
+                }
             }
-            else{   // if no state found
-                try{throw "NO DECISION STATE FOUND";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
-            }
+            avoidObstacle(decision);
         }
 
-        void stepRestrictions(void){    // make sure robot doesnt want to go out of bounds or into a wall
-
-
+        bool avoidSpace(int x, int y){    // make sure robot doesn't want to go out of bounds or into a wall
+            return (world.column[x].row[y].pheromones[0] == 'N' || x >= squaresinGrid || y >= squaresinGrid) ? true : false;
         }
 
         void getOdom(int left, int right){
@@ -152,7 +148,7 @@ class ant{
             ang_vel = k_alpha*alpha+k_beta*beta;
 
             if ((abs(d_x)+abs(d_y)+abs(theta)) > threshold){
-                
+                // TODO
             }
 
             int output[] = {vel, ang_vel};
@@ -178,7 +174,7 @@ class ant{
             }
         }
              
-        void randomSearch(void){
+        int randomSearch(void){
             // wander around, avoid hitting walls
             
             int choice = random(1,100);
@@ -194,9 +190,9 @@ class ant{
             }
 
         /*  -------------
-            | 4 | 3 | 2 |
-            -------------
-            | 5 | C | 1 |
+            | 4 | 3 | 2 |       ^
+            -------------       N
+            | 5 | C | 1 |   
             -------------
             | 6 | 7 | 8 |
             -------------   */
@@ -204,39 +200,49 @@ class ant{
             if(choice >= 0 && choice <= weightsums[0]){                     // C
                 desiredLoc.Grid.x = currentLoc.Grid.x + 0;
                 desiredLoc.Grid.y = currentLoc.Grid.y + 0;
-                }
+                return 0;
+            }
             else if(choice >= weightsums[0] && choice <= weightsums[1]){    // 1
                 desiredLoc.Grid.x = currentLoc.Grid.x + 1;
                 desiredLoc.Grid.y = currentLoc.Grid.y + 0;
-                }
+                return 1;
+            }
             else if(choice >= weightsums[1] && choice <= weightsums[2]){    // 2
                 desiredLoc.Grid.x = currentLoc.Grid.x + 1;
                 desiredLoc.Grid.y = currentLoc.Grid.y + 1;
-                }
+                return 2;
+            }
             else if(choice >= weightsums[2] && choice <= weightsums[3]){    // 3
                 desiredLoc.Grid.x = currentLoc.Grid.x + 0;
                 desiredLoc.Grid.y = currentLoc.Grid.y + 1;
-                }
+                return 3;
+            }
             else if(choice >= weightsums[3] && choice <= weightsums[4]){    // 4
                 desiredLoc.Grid.x = currentLoc.Grid.x - 1;
                 desiredLoc.Grid.y = currentLoc.Grid.y + 1;
-                }
+                return 4;
+            }
             else if(choice >= weightsums[4] && choice <= weightsums[5]){    // 5
                 desiredLoc.Grid.x = currentLoc.Grid.x - 1;
                 desiredLoc.Grid.y = currentLoc.Grid.y + 0;
-                }
+                return 5;
+            }
             else if(choice >= weightsums[5] && choice <= weightsums[6]){    // 6
                 desiredLoc.Grid.x = currentLoc.Grid.x - 1;
                 desiredLoc.Grid.y = currentLoc.Grid.y - 1;
-                }
+                return 6;
+            }
             else if(choice >= weightsums[6] && choice <= weightsums[7]){    // 7
                 desiredLoc.Grid.x = currentLoc.Grid.x - 1;
                 desiredLoc.Grid.y = currentLoc.Grid.y - 0;
-                }
+                return 7;
+            }
             else if(choice >= weightsums[7] && choice <= weightsums[8]){    // 8
                 desiredLoc.Grid.x = currentLoc.Grid.x + 1;
                 desiredLoc.Grid.y = currentLoc.Grid.y - 1;
-                }
+                return 8;
+            }
+            else{return 0;}
         }
 
         bool firstToFind(void){
@@ -281,19 +287,37 @@ class ant{
             int diff = micros() - reading;
         
             // Serial.print(diff); Serial.println("\t");
-
-            int threshold = 200;
-            if(diff >= threshold){      // TODO may want to seperate this into its own function...
-                return(true);
-            }
-            else{ // if(diff < threshold)
-                return(false);
-            }
+            return diff;
+            // int threshold = 200;
+            // if(diff >= threshold){      // TODO may want to seperate this into its own function...
+            //     return(true);
+            // }
+            // else{ // if(diff < threshold)
+            //     return(false);
+            // }
 
         }
 
+        void avoidObstacle(int endGoal){
+            currentLoc.Pos.x;   // x
+            currentLoc.Pos.y;   // y
+            currentLoc.yaw;     // theta
+            int distance = squareWidth;
+
+            struct Coords inFront;
+            inFront.x = distance * cos(currentLoc.yaw);
+            inFront.y = distance * sin(currentLoc.yaw);
+
+
+
+
+            // if(distance <= distanceThreshold){
+            //     k_rho = 0, k_beta = 0;      // correct alpha first to see which way is faster around the obstacle (may only be effective if coming at an angle)
+            // }
+        }
+
         void locateObstacle(int distance){
-            if(distance <= 3000){                   // if there's an obstacle to avoid (TODO find real threshold)
+            if(distance <= distanceThreshold){                   // if there's an obstacle to avoid (TODO find real threshold)
                 // int squareCenterX = currentLoc.Grid.x * squareWidth - squareWidth/2;        //get center of grid square currently in
                 // int squareCenterY = currentLoc.Grid.y * squareHeight - squareHeight/2;
                 int obstacleX = distance * cos(currentLoc.yaw);
