@@ -42,26 +42,26 @@ Links:
 #include <ESP8266WiFi.h>
 #define ROSSERIAL_ARDUINO_TCP
 #include <ros.h>
-// #include <std_msgs/String.h>
+// #include <std_msgs/String.h>D4
 #include <swarm_msgs/Plus.h>    //Header, Pose, bool, string, float32[5]
 #include <swarm_msgs/Grid.h>    
 #include "Wire.h"
 #include <VL53L0X.h>
 #include <string>
 #include <main.h>
-
+      
 #define LED1_PIN D0             // D0 and D4 are the built in LEDs
-#define LED2_PIN D4
+// #define LED2_PIN D4
 
 #define FOOD_PIN D5             // QRE1113
 
 #define motorR_back D3          // Motor Control
-#define motorR_for D7 
-#define motorL_for D8
-#define motorL_back D9
+#define motorR_for D4
+#define motorL_back D8
+#define motorL_for D6
 
 #define ENC_PIN_R 10 //SD3      // Encoders
-#define ENC_PIN_L D6
+#define ENC_PIN_L D7
 
 // Network info
 const char *ssid = WIFI_SSID;
@@ -96,12 +96,13 @@ ros::Publisher chatter("/Pheromones_Write", &pose_msg);
 ros::Subscriber<swarm_msgs::Grid> smell("/Pheromones_Read", &sub_msg);
 
 // Initialize Variables
-float scent, viewDist, right, left, Hz;
+float scent, right, left, Hz;
 bool lightTog = false;
 int timeout = 0, *wheels, timer = 0;
 byte address = 41; // address 0x29
 String state = "ROAM";  // "ROAM", "FOUND_FOOD", "GET_HELP", "FOLLOW_TRAIL"
 char cmd[10];
+struct Coords vels;
 
 void adminCommands(char *cmd);
 void IRAM_ATTR read_encL(void);
@@ -135,7 +136,7 @@ void setup()
 
     // Establish pins
     pinMode(LED1_PIN, OUTPUT);
-    pinMode(LED2_PIN, OUTPUT);
+    // pinMode(LED2_PIN, OUTPUT);
     pinMode(FOOD_PIN, OUTPUT);
 
     pinMode(motorL_for, OUTPUT);
@@ -151,7 +152,7 @@ void setup()
 
     // Connect the ESP8266 the the wifi AP
     WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED && timeout <= 60)
+    while (WiFi.status() != WL_CONNECTED && timeout <= 10)
     {
         timeout++;
         delay(500);
@@ -159,7 +160,7 @@ void setup()
 
         lightTog = !lightTog;
         digitalWrite(LED1_PIN, lightTog);
-        digitalWrite(LED2_PIN, true);
+        // digitalWrite(LED2_PIN, true);
     }
 
     Serial.println("");
@@ -175,6 +176,7 @@ void setup()
     // Start asking questions
     nh.subscribe(smell);
     // delay(10000);
+    // Robot.calibrateIR(Robot.ReadIR(FOOD_PIN));
 }
 
 void loop()
@@ -184,13 +186,13 @@ void loop()
     if (sensor.timeoutOccurred())   // if Lidar sensor times out
     {try{throw "LIDAR TIMEOUT";} catch (int E){Serial.print("AN EXCEPTION WAS THROWN: ");Serial.print(E);}} // throw exception
 
-    viewDist = sensor.readRangeContinuousMillimeters(); // gives Lidar distance in mm
+    Robot.viewDist = sensor.readRangeContinuousMillimeters(); // gives Lidar distance in mm
     scent = Robot.ReadIR(FOOD_PIN);                     // returns true if food found, returns false if not
 
     // right = digitalRead(ENC_PIN_R);
     // left = map(analogRead(ENC_PIN_L), 1, 1024, 0, 1);
 
-    Robot.getOdom(left, right);
+    Robot.getOdom();
 
     /* #endregion */
     /* #region ----------------------------------------------CALCULATIONS--------------------------------------------------------------------*/
@@ -202,7 +204,7 @@ void loop()
 
     Robot.euler_to_quarternion();
 
-    Robot.locateObstacle(viewDist);
+    Robot.locateObstacle(Robot.viewDist);
 
     // if(*wheels >= 0){
     //     analogWrite(motorR_for, *wheels);
@@ -226,16 +228,16 @@ void loop()
     /* #endregion */
     /* #region ---------------------------------------------ROS-CONNECTION-------------------------------------------------------------------*/
 
-    pose_msg.pose.position.x = Robot.currentLoc.Pos.x;
+    pose_msg.pose.position.x = Robot.currentLoc.Pos.x;      // std_msgs/Pose (minus z)
     pose_msg.pose.position.y = Robot.currentLoc.Pos.y;
     pose_msg.pose.orientation.x = Robot.currentLoc.qx;
     pose_msg.pose.orientation.y = Robot.currentLoc.qy;
     pose_msg.pose.orientation.z = Robot.currentLoc.qz;
     pose_msg.pose.orientation.w = Robot.currentLoc.qw;
-    pose_msg.header.frame_id = Robot.name.c_str();         // convert to const char* bc c++ doesn't do strings
-    pose_msg.pheromone = Robot.active;               // pheromone activation
-    pose_msg.state = state.c_str();                  // state of robot for reference
-    // pose_msg.display[0] = ;                       //if anything to display wirelessly (bugfixing)
+    pose_msg.header.frame_id = Robot.name.c_str();          // Robot name (convert to const char* bc c++ doesn't do strings)
+    pose_msg.pheromone = Robot.active;                      // pheromone activation
+    pose_msg.state = state.c_str();                         // state of robot for reference
+    // pose_msg.display[0] = ;                              // if anything to display wirelessly (bugfixing)
     // pose_msg.display[1] = ;
     // pose_msg.display[2] = ;
     // pose_msg.display[3] = ;
@@ -247,80 +249,89 @@ void loop()
     // pose_msg_prev = pose_msg;
 
 
-    if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
-        chatter.publish(&pose_msg);
-        digitalWrite(LED1_PIN, false);
-        digitalWrite(LED2_PIN, true);
-    }
-    else if (WiFi.status() != WL_CONNECTED){                // not connected to network
-        Serial.print("DISCONNECTED FROM ");  Serial.println(ssid);
-        WiFi.reconnect();
-        timeout = 0;
-        while (WiFi.status() != WL_CONNECTED && timeout <= 20)
-        {
-            timeout++;
-            delay(500);
-            Serial.print(".");
+    // if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
+    //     chatter.publish(&pose_msg);
+    //     digitalWrite(LED1_PIN, false);
+    //     digitalWrite(LED2_PIN, true);
+    // }
+    // else if (WiFi.status() != WL_CONNECTED){                // not connected to network
+    //     Serial.print("DISCONNECTED FROM ");  Serial.println(ssid);
+    //     WiFi.reconnect();
+    //     timeout = 0;
+    //     while (WiFi.status() != WL_CONNECTED && timeout <= 20)
+    //     {
+    //         timeout++;
+    //         delay(500);
+    //         Serial.print(".");
 
-            lightTog = !lightTog;
-            digitalWrite(LED1_PIN, lightTog);               // slow blink
-            digitalWrite(LED2_PIN, true);
-        }
-        Serial.println("");
-    }
-    else if (!nh.connected()){                              // only not connected to roscore
-        Serial.println("DISCONNECTED FROM ROS");
-        nh.advertise(chatter);
-        timeout = 0;
-        while (!nh.connected() && timeout <= 10){
-            timeout++;
-            delay(250);
-            Serial.print(".");
-            nh.spinOnce();
+    //         lightTog = !lightTog;
+    //         digitalWrite(LED1_PIN, lightTog);               // slow blink
+    //         digitalWrite(LED2_PIN, true);
+    //     }
+    //     Serial.println("");
+    // }
+    // else if (!nh.connected()){                              // only not connected to roscore
+    //     Serial.println("DISCONNECTED FROM ROS");
+    //     // nh.advertise(chatter);
+    //     timeout = 0;
+    //     while (!nh.connected() && timeout <= 10){
+    //         timeout++;
+    //         delay(250);
+    //         Serial.print(".");
+    //         nh.spinOnce();
 
-            lightTog = !lightTog;
-            digitalWrite(LED1_PIN, lightTog);               // faster blink
-            digitalWrite(LED2_PIN, true);
-        }
-        Serial.println("");
-    }
+    //         lightTog = !lightTog;
+    //         digitalWrite(LED1_PIN, lightTog);               // faster blink
+    //         digitalWrite(LED2_PIN, true);
+    //     }
+    //     Serial.println("");
+    // }
 
     /* #endregion */
     /* #region ------------------------------------------------BEHAVIOR----------------------------------------------------------------------*/
 
     // Robot.decision(state); // decides the overall state of the robot (wandering, tracking, etc.)
 
-    Robot.nextStep(state); // decides how to decide desired location
-    Robot.locateObstacle(viewDist);
+    // if(Robot.scentFilter(scent)){
+    //     state = "FOUND_FOOD";
+    // }
+    // if(Robot.reachedGoal()){
+    //     Robot.nextStep(state); // decides how to decide desired location
+    // }
+    
+    // Robot.locateObstacle(Robot.viewDist);
 
-    int * vels = Robot.controlLaw();
-    int vel = *vels, ang_vel = *(vels+1);
 
-    // timer++;
-    // if(timer>0 && timer<=50){
-    //     Serial.print("forward");  Serial.println("\t");
-    //     Robot.driveWheel('R','F',100);
-    //     Robot.driveWheel('L','F',100);
-    // }
-    // else if(timer>50 && timer<=100){
-    //     Serial.print("left");  Serial.println("\t");
-    //     Robot.driveWheel('R','F',100);
-    //     Robot.driveWheel('L','B',100);
-    // }
-    // else if(timer>100 && timer<=150){
-    //     Serial.print("backward");  Serial.println("\t");
-    //     Robot.driveWheel('R','B',100);
-    //     Robot.driveWheel('L','B',100);
-    // }
-    // else if(timer>150 && timer<=200){
-    //     Serial.print("right");  Serial.println("\t");
-    //     Robot.driveWheel('R','B',100);
-    //     Robot.driveWheel('L','F',100);
-    // }
-    // else if(timer>200){ 
-    //     Serial.println("");
-    //     timer = 0;
-    // }
+    // vels = Robot.controlLaw();
+    // int vel = vels.x;
+    // int ang_vel = vels.y;
+    // Robot.moveRobot(vel, ang_vel);
+
+    timer++;
+    if(timer>0 && timer<=50){
+        Serial.print("forward");  Serial.println("\t");
+        Robot.driveWheel('R','F',100);
+        Robot.driveWheel('L','F',100);
+    }
+    else if(timer>50 && timer<=100){
+        Serial.print("left");  Serial.println("\t");
+        Robot.driveWheel('R','F',100);
+        Robot.driveWheel('L','B',100);
+    }
+    else if(timer>100 && timer<=150){
+        Serial.print("backward");  Serial.println("\t");
+        Robot.driveWheel('R','B',100);
+        Robot.driveWheel('L','B',100);
+    }
+    else if(timer>150 && timer<=200){
+        Serial.print("right");  Serial.println("\t");
+        Robot.driveWheel('R','B',100);
+        Robot.driveWheel('L','F',100);
+    }
+    else if(timer>200){ 
+        Serial.println("");
+        timer = 0;
+    }
 
     /* #endregion */
     /* #region -------------------------------------------------EXTRAS-----------------------------------------------------------------------*/
@@ -328,15 +339,18 @@ void loop()
 
     Serial.print(Robot.currentLoc.Pos.x); Serial.print("\t");
     Serial.print(Robot.currentLoc.Pos.y); Serial.print("\t");
+    Serial.print(Robot.desiredLoc.Pos.x); Serial.print("\t");
+    Serial.print(Robot.desiredLoc.Pos.y); Serial.print("\t");
     // Serial.print(sizeof(Robot.world.column[0])); Serial.print("\t");
     // Serial.print(state); Serial.print("\t");    
     // Serial.print(rightVel); Serial.print("\t");
     // Serial.print(leftVel); Serial.print("\t");
-    Serial.print(viewDist); Serial.print("\t");
-    Serial.print(scent); Serial.print("\t");
+    Serial.print(Robot.viewDist); Serial.print("\t");
+    // Serial.print(scent); Serial .print("\t");
     // Serial.print(right); Serial.print("\t"); 
     // Serial.print(left); Serial.print("\t");
     // Serial.print(serverPort); Serial.print("\t");
+    // Serial.print(double(Robot.squareWidth)); Serial.print("\t");
 
     Serial.println("");   
     
@@ -362,7 +376,7 @@ void loop()
     
     // Loop exproximativly at 10Hz
     delay(100);
-    nh.spinOnce();
+    // nh.spinOnce();
 }
     /* #endregion */
 
@@ -413,22 +427,18 @@ void adminCommands(char *cmd)
 }
 
 void read_encL(){ //maintain encoder tick left wheel counts
-    Robot.countL = Robot.countL + 1;
     Robot.time_nowL = millis(); 
     Robot.delta_t_L = Robot.time_nowL-Robot.time_previousL;
     Robot.time_previousL = Robot.time_nowL;
-    Robot.v_left = Robot.countL /(Robot.rpm_convert * Robot.delta_t_L); //linear velocity left wheel
-    Robot.countL = 0; 
-    Serial.print("Left"); Serial.print("\t");
+    Robot.v_left = 1 / (Robot.rpm_convert * Robot.delta_t_L); //linear velocity left wheel
+    // Serial.print("Left"); Serial.print("\t");
 }
 
 void read_encR(){ //maintain encoder tick right wheel counts
-    Robot.countR = Robot.countR + 1;
     Robot.time_nowR = millis(); 
     Robot.delta_t_R = Robot.time_nowR-Robot.time_previousR;
     Robot.time_previousR = Robot.time_nowR;
-    Robot.v_right = Robot.countR /(Robot.rpm_convert * Robot.delta_t_R); //linear velocity right wheel
-    Robot.countL = 0;
+    Robot.v_right = 1 / (Robot.rpm_convert * Robot.delta_t_R); //linear velocity right wheel
     Serial.print("Right"); Serial.print("\t");
 }
 
