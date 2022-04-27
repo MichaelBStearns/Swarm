@@ -152,21 +152,21 @@ void setup()
 
     // Connect the ESP8266 the the wifi AP
     WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED && timeout <= 10)
-    {
-        timeout++;
-        delay(500);
-        Serial.print(".");
+    // while (WiFi.status() != WL_CONNECTED && timeout <= 10)
+    // {
+    //     timeout++;
+    //     delay(500);
+    //     Serial.print(".");
 
-        lightTog = !lightTog;
-        digitalWrite(LED1_PIN, lightTog);
-        // digitalWrite(LED2_PIN, true);
-    }
+    //     lightTog = !lightTog;
+    //     digitalWrite(LED1_PIN, lightTog);
+    //     // digitalWrite(LED2_PIN, true);
+    // }
 
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
+    // Serial.println(WiFi.localIP());
 
     // Set the connection to rosserial socket server
     nh.getHardware()->setConnection(server, serverPort);
@@ -175,7 +175,7 @@ void setup()
     nh.advertise(chatter);
     // Start asking questions
     nh.subscribe(smell);
-    // delay(10000);
+    // delay(20000);
     // Robot.calibrateIR(Robot.ReadIR(FOOD_PIN));
 }
 
@@ -192,36 +192,17 @@ void loop()
     // right = digitalRead(ENC_PIN_R);
     // left = map(analogRead(ENC_PIN_L), 1, 1024, 0, 1);
 
-    Robot.getOdom();
-
     /* #endregion */
     /* #region ----------------------------------------------CALCULATIONS--------------------------------------------------------------------*/
 
     // convert pos in mm to grid pos
     Coords grid = Robot.pos_to_Grid(Robot.currentLoc.Pos.x, Robot.currentLoc.Pos.y);
-    Robot.currentLoc.Pos.x = grid.x;
-    Robot.currentLoc.Pos.y = grid.y;
+    Robot.currentLoc.Grid.x = grid.x;
+    Robot.currentLoc.Grid.y = grid.y;
 
     Robot.euler_to_quarternion();
 
-    Robot.locateObstacle(Robot.viewDist);
-
-    // if(*wheels >= 0){
-    //     analogWrite(motorR_for, *wheels);
-    //     analogWrite(motorR_back, 0);
-    // }
-    // else{
-    //     analogWrite(motorR_for, 0);
-    //     analogWrite(motorR_back, abs(*wheels));
-    // }
-    // if(*(wheels+1) >= 0){
-    //     analogWrite(motorL_for, *wheels);
-    //     analogWrite(motorL_back, 0);
-    // }
-    // else{
-    //     analogWrite(motorL_for, 0);
-    //     analogWrite(motorL_back, abs(*wheels));
-    // }
+    // Robot.locateObstacle(Robot.viewDist);
 
     // Robot.getOdom(left, right);
 
@@ -242,11 +223,6 @@ void loop()
     // pose_msg.display[2] = ;
     // pose_msg.display[3] = ;
     // pose_msg.display[4] = ;
-
-
-    // TODO: overload operator for: Plus != Plus
-    // if((pose_msg.pose.position.x != pose_msg_prev.pose.position.x) && (pose_msg.pose.position.y != pose_msg_prev.pose.position.y))}
-    // pose_msg_prev = pose_msg;
 
 
     // if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
@@ -292,60 +268,77 @@ void loop()
 
     // Robot.decision(state); // decides the overall state of the robot (wandering, tracking, etc.)
 
-    // if(Robot.scentFilter(scent)){
-    //     state = "FOUND_FOOD";
-    // }
-    // if(Robot.reachedGoal()){
-    //     Robot.nextStep(state); // decides how to decide desired location
-    // }
+    // Robot.getOdom(left, right);
+    Robot.getOdom();
+
+    if(Robot.scentFilter(scent)){
+        state = "FOUND_FOOD";
+    }
+    bool reachedGoal = Robot.reachedGoal();
+    if(reachedGoal == true){
+        Robot.driveWheel('R',0);
+        Robot.driveWheel('L',0);
+        delay(1000);
+        Robot.decision = 0;
+        Robot.nextStep(state); // decides how to decide desired location
+    }
+    else{
     
-    // Robot.locateObstacle(Robot.viewDist);
+        // Robot.locateObstacle(Robot.viewDist);
+        vels = Robot.controlLaw();
+        int vel = vels.x;
+        int ang_vel = vels.y;
+        
+        Serial.print("Total Vels: ");
+        Serial.print(vel); Serial.print("\t");
+        Serial.print(ang_vel); Serial.print("\t");
 
+        Robot.moveRobot(vel, ang_vel);
+    }
 
-    // vels = Robot.controlLaw();
-    // int vel = vels.x;
-    // int ang_vel = vels.y;
-    // Robot.moveRobot(vel, ang_vel);
-
-    timer++;
-    if(timer>0 && timer<=50){
-        Serial.print("forward");  Serial.println("\t");
-        Robot.driveWheel('R','F',100);
-        Robot.driveWheel('L','F',100);
-    }
-    else if(timer>50 && timer<=100){
-        Serial.print("left");  Serial.println("\t");
-        Robot.driveWheel('R','F',100);
-        Robot.driveWheel('L','B',100);
-    }
-    else if(timer>100 && timer<=150){
-        Serial.print("backward");  Serial.println("\t");
-        Robot.driveWheel('R','B',100);
-        Robot.driveWheel('L','B',100);
-    }
-    else if(timer>150 && timer<=200){
-        Serial.print("right");  Serial.println("\t");
-        Robot.driveWheel('R','B',100);
-        Robot.driveWheel('L','F',100);
-    }
-    else if(timer>200){ 
-        Serial.println("");
-        timer = 0;
-    }
+    // timer++;
+    // if(timer>0 && timer<=50){
+    //     Serial.print("forward");  Serial.println("\t");
+    // Robot.driveWheel('R',200);
+    // Robot.driveWheel('L',200);
+    // }
+    // else if(timer>50 && timer<=100){
+    //     Serial.print("left");  Serial.println("\t");
+    //     Robot.driveWheel('R',200);
+    //     Robot.driveWheel('L',-200);
+    // }
+    // else if(timer>100 && timer<=150){
+    //     Serial.print("backward");  Serial.println("\t");
+    //     Robot.driveWheel('R',-200);
+    //     Robot.driveWheel('L',200);
+    // }
+    // else if(timer>150 && timer<=200){
+    //     Serial.print("right");  Serial.println("\t");
+    //     Robot.driveWheel('R',-200);
+    //     Robot.driveWheel('L',-200);
+    // }
+    // else if(timer>200){ 
+    //     Serial.println("");
+    //     timer = 0;
+    // }
 
     /* #endregion */
     /* #region -------------------------------------------------EXTRAS-----------------------------------------------------------------------*/
 
 
+    Serial.print("Current: ");
     Serial.print(Robot.currentLoc.Pos.x); Serial.print("\t");
     Serial.print(Robot.currentLoc.Pos.y); Serial.print("\t");
+    Serial.print(Robot.currentLoc.yaw); Serial.print("\t");
+    Serial.print("Desired: ");
     Serial.print(Robot.desiredLoc.Pos.x); Serial.print("\t");
     Serial.print(Robot.desiredLoc.Pos.y); Serial.print("\t");
+    Serial.print(Robot.desiredLoc.yaw); Serial.print("\t");
     // Serial.print(sizeof(Robot.world.column[0])); Serial.print("\t");
     // Serial.print(state); Serial.print("\t");    
     // Serial.print(rightVel); Serial.print("\t");
     // Serial.print(leftVel); Serial.print("\t");
-    Serial.print(Robot.viewDist); Serial.print("\t");
+    // Serial.print(Robot.viewDist); Serial.print("\t");
     // Serial.print(scent); Serial .print("\t");
     // Serial.print(right); Serial.print("\t"); 
     // Serial.print(left); Serial.print("\t");
@@ -375,7 +368,7 @@ void loop()
     /* #region ---------------------------------------------------END------------------------------------------------------------------------*/
     
     // Loop exproximativly at 10Hz
-    delay(100);
+    delay(Robot.loopLength);
     // nh.spinOnce();
 }
     /* #endregion */
@@ -398,6 +391,10 @@ void adminCommands(char *cmd)
     else if (cmd[4] == 's' && cmd[5] == 't' && cmd[6] == 'a' && cmd[7] == 't' && cmd[8] == 'e')
     { // "state/"
         Serial.println(state);
+    }
+    else if (cmd[5] == 'p' && cmd[6] == 'o' && cmd[7] == 'r' && cmd[8] == 't')
+    { // "port/"
+        Serial.println(serverPort);
     }
     else if (cmd[5] == 'p' && cmd[6] == 'o' && cmd[7] == 'r' && cmd[8] == 't')
     { // "port/"
@@ -430,7 +427,7 @@ void read_encL(){ //maintain encoder tick left wheel counts
     Robot.time_nowL = millis(); 
     Robot.delta_t_L = Robot.time_nowL-Robot.time_previousL;
     Robot.time_previousL = Robot.time_nowL;
-    Robot.v_left = 1 / (Robot.rpm_convert * Robot.delta_t_L); //linear velocity left wheel
+    Robot.v_left = (((2*PI*Robot.radius)/Robot.ticks_per_rev) / (Robot.delta_t_L)) * Robot.rSign; //linear velocity left wheel (mm/ms)
     // Serial.print("Left"); Serial.print("\t");
 }
 
@@ -438,8 +435,8 @@ void read_encR(){ //maintain encoder tick right wheel counts
     Robot.time_nowR = millis(); 
     Robot.delta_t_R = Robot.time_nowR-Robot.time_previousR;
     Robot.time_previousR = Robot.time_nowR;
-    Robot.v_right = 1 / (Robot.rpm_convert * Robot.delta_t_R); //linear velocity right wheel
-    Serial.print("Right"); Serial.print("\t");
+    Robot.v_right = (((2*PI*Robot.radius)/Robot.ticks_per_rev) / (Robot.delta_t_R)) * Robot.lSign; //linear velocity right wheel (mm/ms)
+    // Serial.print("Right"); Serial.print("\t");
 }
 
 
