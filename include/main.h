@@ -40,7 +40,7 @@ class ant{
                             time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R = 0, delta_t_L = 0,
                             omega_left = 0, omega_right = 0, v_center = 0, v_right = 0, v_left = 0, revL = 0, revR = 0,
                             k_rho = 4, k_alpha = 20, k_beta = -4,		// control coefficients      
-                            IRThreshold, distThreshold = 20, rSign = 1, lSign = 1,
+                            IRThreshold, distThreshold = 10, rSign = 1, lSign = 1,
                             d_x, d_y, d_theta;	                      
         bool                active = false;    //pheromones
         uint8_t             currentPher[5], prevPher[5], scents[5]; 
@@ -110,6 +110,7 @@ class ant{
         }
 
         bool avoidSpace(int x, int y){    // make sure robot doesn't want to go out of bounds or into a wall
+            //Serial.println(world.column[x].row[y].pheromones[0]);
             return (world.column[x].row[y].pheromones[0] == 'N' || x >= squaresinGrid || y >= squaresinGrid|| x <= 0 || y <= 0 || world.column[x].row[y].pheromones[0] > 80 ) ? true : false; 
         }
 
@@ -230,7 +231,7 @@ class ant{
             Serial.print(d_center*cos(currentLoc.yaw)); Serial.print("\t");
             Serial.print(d_center*sin(currentLoc.yaw)); Serial.print("\t");
 
-            currentLoc.Pos.x = currentLoc.Pos.x - d_center*cos(currentLoc.yaw); //new x pos from old x (updates once each loop (10Hz))
+            currentLoc.Pos.x = currentLoc.Pos.x + d_center*cos(currentLoc.yaw); //new x pos from old x (updates once each loop (10Hz))
             currentLoc.Pos.y = currentLoc.Pos.y - d_center*sin(currentLoc.yaw); //new y pos from old y
 
             euler_to_quarternion(); // calculated quarternion fron existing euler
@@ -568,11 +569,6 @@ class ant{
                 return 8;
             }
             else{return 0;}
-        }
-        int Pheravoidance(){
-            //if pheromone higher than threshold move over one square to the right
-            //check pheromones until pheromones drop below threshold 
-            //move back onto pheromone path
         }
 };
 

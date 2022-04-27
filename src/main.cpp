@@ -224,7 +224,7 @@ void loop()
     // pose_msg.display[4] = ;
 
 
-    /* if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
+    if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
         chatter.publish(&pose_msg);
          digitalWrite(LED1_PIN, false);
          //digitalWrite(LED2_PIN, true);
