@@ -8,6 +8,7 @@ A swarm of beetle-weight robots that communicate through wifi and accomplish sim
 
 ## Libraries
 frankjoshua/Rosserial Arduino Library@^0.9.1
+
 pololu/VL53L0X@^1.3.1
 
 ## ROS
