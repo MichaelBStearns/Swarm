@@ -35,12 +35,12 @@ class ant{
 
         struct Location     currentLoc, desiredLoc;
         int                 id, velocity, rightOld=-1, leftOld=-1,
-                            vel = 0, ang_vel = 0, viewDist; 
+                            vel = 0, ang_vel = 0, viewDist, decision = 0; 
 		double 	            theta = 0, phi = 0,               //radians
                             time_nowL, time_nowR, time_previousL, time_previousR, delta_t_R = 0, delta_t_L = 0,
                             omega_left = 0, omega_right = 0, v_center = 0, v_right = 0, v_left = 0, revL = 0, revR = 0,
-                            k_rho = 4, k_alpha = 15, k_beta = -4,		// control coefficients      
-                            IRThreshold, distThreshold = 20, decision = 0, rSign = 1, lSign = 1,
+                            k_rho = 4, k_alpha = 20, k_beta = -4,		// control coefficients      
+                            IRThreshold, distThreshold = 20, rSign = 1, lSign = 1,
                             d_x, d_y, d_theta;	                      
         bool                active = false;    //pheromones
         uint8_t             currentPher[5], prevPher[5], scents[5]; 
@@ -63,8 +63,9 @@ class ant{
             desiredLoc.Pos.y = double(squareWidth);
         }
 
-        void nextStep(String state){            
-            while(avoidSpace(desiredLoc.Grid.x, desiredLoc.Grid.y) == true || decision == 0){     // loop if the chosen space needs to be avoided ('N')
+        void nextStep(String state){     
+            bool avoidspace = false;       
+            while(avoidspace == true || decision == 0){     // loop if the chosen space needs to be avoided ('N')
                 if(state == "ROAM"){    // no food or pheromones found
                     // Serial.print("test1");
                     decision = randomSearch();
@@ -90,9 +91,10 @@ class ant{
 
                 }
                 else{   // if no state found
-                    try{throw "NO DECISION STATE FOUND";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
+                    try{throw "NO STATE FOUND";} catch(int E){Serial.print("AN EXCEPTION WAS THROWN: "); Serial.print(E);}     // throw exception 
                 }
                 grid_to_Pos();
+                avoidspace = avoidSpace(desiredLoc.Grid.x, desiredLoc.Grid.y);
                 Serial.print("decision:"); Serial.print(decision); Serial.print("\t");
                 Serial.print(avoidSpace(desiredLoc.Grid.x, desiredLoc.Grid.y)); Serial.print("\t");
             }
@@ -269,13 +271,23 @@ class ant{
         }
 
         void moveRobot(int vel, int ang_vel){
-            int rVel, lVel;
+            int rVel, lVel, rdrive, ldrive;
             rVel = vel + (ang_vel * radius);
             lVel = vel - (ang_vel * radius);
             if(rVel < 0){rVel = 0;}
             if(lVel < 0){lVel = 0;}
-            rVel = map(rVel, 0, 500, 0, 255); //convert to PWM that makes the motor turn
-            lVel = map(lVel, 0, 500, 0, 255);
+
+            rVel = map(rVel, 0, 500, 50, 255); //convert to PWM that makes the motor turn
+            lVel = map(lVel, 0, 500, 50, 255);
+
+            // while(rVel > 0 && v_right == 0){             //make sure wheel is turning if it watns to be
+            //     rVel++;
+            //     driveWheel('R',rVel);
+            // }   
+            // while(lVel > 0 && v_left == 0){
+            //     lVel++;
+            //     driveWheel('L',lVel);           
+            // }
 
             driveWheel('R',rVel);
             driveWheel('L',lVel);
