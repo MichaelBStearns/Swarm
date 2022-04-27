@@ -110,7 +110,7 @@ class ant{
         }
 
         bool avoidSpace(int x, int y){    // make sure robot doesn't want to go out of bounds or into a wall
-            return (world.column[x].row[y].pheromones[0] == 'N' || x >= squaresinGrid || y >= squaresinGrid|| x <= 0 || y <= 0) ? true : false;
+            return (world.column[x].row[y].pheromones[0] == 'N' || x >= squaresinGrid || y >= squaresinGrid|| x <= 0 || y <= 0 || world.column[x].row[y].pheromones[0] > 80 ) ? true : false; 
         }
 
         int randomSearch(void){
@@ -568,6 +568,11 @@ class ant{
                 return 8;
             }
             else{return 0;}
+        }
+        int Pheravoidance(){
+            //if pheromone higher than threshold move over one square to the right
+            //check pheromones until pheromones drop below threshold 
+            //move back onto pheromone path
         }
 };
 

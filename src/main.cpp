@@ -152,16 +152,15 @@ void setup()
 
     // Connect the ESP8266 the the wifi AP
     WiFi.begin(ssid, password);
-    // while (WiFi.status() != WL_CONNECTED && timeout <= 10)
-    // {
-    //     timeout++;
-    //     delay(500);
-    //     Serial.print(".");
-
-    //     lightTog = !lightTog;
-    //     digitalWrite(LED1_PIN, lightTog);
-    //     // digitalWrite(LED2_PIN, true);
-    // }
+     while (WiFi.status() != WL_CONNECTED && timeout <= 10)
+     {
+        timeout++;
+        delay(500);
+        Serial.print(".");
+        lightTog = !lightTog;
+        digitalWrite(LED1_PIN, lightTog);
+        //digitalWrite(LED2_PIN, true);
+     }
 
     Serial.println("");
     Serial.println("WiFi connected");
@@ -225,43 +224,43 @@ void loop()
     // pose_msg.display[4] = ;
 
 
-    // if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
-    //     chatter.publish(&pose_msg);
-    //     digitalWrite(LED1_PIN, false);
-    //     digitalWrite(LED2_PIN, true);
-    // }
-    // else if (WiFi.status() != WL_CONNECTED){                // not connected to network
-    //     Serial.print("DISCONNECTED FROM ");  Serial.println(ssid);
-    //     WiFi.reconnect();
-    //     timeout = 0;
-    //     while (WiFi.status() != WL_CONNECTED && timeout <= 20)
-    //     {
-    //         timeout++;
-    //         delay(500);
-    //         Serial.print(".");
+    /* if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
+        chatter.publish(&pose_msg);
+         digitalWrite(LED1_PIN, false);
+         //digitalWrite(LED2_PIN, true);
+     }
+     else if (WiFi.status() != WL_CONNECTED){                // not connected to network
+         Serial.print("DISCONNECTED FROM ");  Serial.println(ssid);
+         WiFi.reconnect();
+         timeout = 0;
+         while (WiFi.status() != WL_CONNECTED && timeout <= 20)
+         {
+             timeout++;
+             delay(500);
+             Serial.print(".");
 
-    //         lightTog = !lightTog;
-    //         digitalWrite(LED1_PIN, lightTog);               // slow blink
-    //         digitalWrite(LED2_PIN, true);
-    //     }
-    //     Serial.println("");
-    // }
-    // else if (!nh.connected()){                              // only not connected to roscore
-    //     Serial.println("DISCONNECTED FROM ROS");
-    //     // nh.advertise(chatter);
-    //     timeout = 0;
-    //     while (!nh.connected() && timeout <= 10){
-    //         timeout++;
-    //         delay(250);
-    //         Serial.print(".");
-    //         nh.spinOnce();
+             lightTog = !lightTog;
+             digitalWrite(LED1_PIN, lightTog);               // slow blink
+             //digitalWrite(LED2_PIN, true);
+         }
+         Serial.println("");
+     }
+     else if (!nh.connected()){                              // only not connected to roscore
+         Serial.println("DISCONNECTED FROM ROS");
+          nh.advertise(chatter);
+         timeout = 0;
+         while (!nh.connected() && timeout <= 10){
+             timeout++;
+             delay(250);
+             Serial.print(".");
+             nh.spinOnce();
 
-    //         lightTog = !lightTog;
-    //         digitalWrite(LED1_PIN, lightTog);               // faster blink
-    //         digitalWrite(LED2_PIN, true);
-    //     }
-    //     Serial.println("");
-    // }
+             lightTog = !lightTog;
+             digitalWrite(LED1_PIN, lightTog);               // faster blink
+             //digitalWrite(LED2_PIN, true);
+         }
+         Serial.println("");
+     }
 
     /* #endregion */
     /* #region ------------------------------------------------BEHAVIOR----------------------------------------------------------------------*/
