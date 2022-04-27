@@ -366,7 +366,11 @@ void loop()
 
     /* #endregion */
     /* #region ---------------------------------------------------END------------------------------------------------------------------------*/
-    
+    for(int i = 0; i < 5; i++){
+        if(Robot.currentPher[i] > 0){
+            Robot.currentPher[i]-=1;
+        }
+    }
     // Loop exproximativly at 10Hz
     delay(Robot.loopLength);
     // nh.spinOnce();

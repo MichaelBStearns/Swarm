@@ -74,6 +74,7 @@ class ant{
                     active = true;
                     if(firstToFind()){
                         state = "GET_HELP";
+                        findHelp();
                     }
                     else{
                         surroundFood();
@@ -85,7 +86,9 @@ class ant{
                     desiredLoc.Pos.y = double(squareHeight);
                 }
                 else if(state == "FOLLOW_TRAIL"){   //found stronger pheromones, follow it back to food
-                    
+                    decision = strongestPher();
+                    Serial.print("decision:"); Serial.print(decision); Serial.print("\t");
+                    //move to new location
                 }
                 else if(state == ""){
 
@@ -114,7 +117,9 @@ class ant{
             // wander around, avoid hitting walls
             
             int choice = random(1,100);
+
             uint8_t weights[] = {0, 10, 20, 31, 20, 10, 4, 1, 4}; //toal 100
+
             uint8_t weightsums[9] = {0};
 
             weightsums[0] = weights[0];
@@ -375,10 +380,24 @@ class ant{
             return first;
         }
 
-        void findHelp(void){
-            active = true;
-            // drive back to start, setting 'active' pheromones along the way
-
+        void findHelp(void){ // drive back to start, setting 'active' pheromones along the way
+            active = true; //set pheromones active
+            if(name == "Blue" && active == true){  //lay down pheromeones according to robot name
+                currentPher[0] = 99;
+            }
+            else if(name == "Charlie" && active == true){
+                currentPher[1] = 99;
+            }
+            else if(name == "Delta" && active == true){
+                currentPher[2] = 99;
+            }
+            else if(name == "Echo" && active == true){
+                currentPher[3] = 99;
+            }
+            else if(name == "Foxtrot" && active == true){
+                currentPher[4] = 99;
+            }
+            //drive back to start
         }
 
         bool ReadIR(int sensor){  //sends a signal with the IR sensor then detects how long it takes to come back
@@ -487,6 +506,68 @@ class ant{
             // Serial.print(currentLoc.Pos.y - desiredLoc.Pos.y <= distThreshold); Serial.print("\t");
             // Serial.print(currentLoc.yaw - desiredLoc.yaw <= distThreshold); Serial.print("\t");
             return((abs(currentLoc.Pos.x - desiredLoc.Pos.x) <= distThreshold) && (abs(currentLoc.Pos.y - desiredLoc.Pos.y) <= distThreshold) && (abs(currentLoc.yaw - desiredLoc.yaw) <= distThreshold*0.03));
+        }
+
+        int strongestPher(){
+            int maxVal[] = {};
+            int maxIndex = 0;
+            for(int choice = 1; choice < 9; choice++){ //loop through possible next squares
+                for (int i = 0; i < sizeof(currentPher); i++) { //loop through potential pheromones in squares
+                    if (currentPher[i] > maxVal[choice]) { //if value is larger store it in max val based on square and save index
+                        maxVal[choice] = currentPher[i];
+                        maxIndex = i;
+                    }
+                }
+            } 
+
+            int largest = 0;
+            for (int square = 0; square < sizeof(maxVal); square++) { //loop max values to find largest pheromone in all choices
+                if (maxVal[square+1] > maxVal[square]) { 
+                    largest = square;
+                }
+            }
+            //return where new square is
+            if(largest == 1){    // 1
+                desiredLoc.Grid.x = currentLoc.Grid.x + 1;
+                desiredLoc.Grid.y = currentLoc.Grid.y + 0;
+                return 1;
+            }
+            else if(largest == 2){    // 2
+                desiredLoc.Grid.x = currentLoc.Grid.x + 1;
+                desiredLoc.Grid.y = currentLoc.Grid.y + 1;
+                return 2;
+            }
+            else if(largest == 3){    // 3
+                desiredLoc.Grid.x = currentLoc.Grid.x + 0;
+                desiredLoc.Grid.y = currentLoc.Grid.y + 1;
+                return 3;
+            }
+            else if(largest == 4){    // 4
+                desiredLoc.Grid.x = currentLoc.Grid.x - 1;
+                desiredLoc.Grid.y = currentLoc.Grid.y + 1;
+                return 4;
+            }
+            else if(largest == 5){    // 5
+                desiredLoc.Grid.x = currentLoc.Grid.x - 1;
+                desiredLoc.Grid.y = currentLoc.Grid.y + 0;
+                return 5;
+            }
+            else if(largest == 6){    // 6
+                desiredLoc.Grid.x = currentLoc.Grid.x - 1;
+                desiredLoc.Grid.y = currentLoc.Grid.y - 1;
+                return 6;
+            }
+            else if(largest == 7){    // 7
+                desiredLoc.Grid.x = currentLoc.Grid.x - 1;
+                desiredLoc.Grid.y = currentLoc.Grid.y - 0;
+                return 7;
+            }
+            else if(largest == 8){    // 8
+                desiredLoc.Grid.x = currentLoc.Grid.x + 1;
+                desiredLoc.Grid.y = currentLoc.Grid.y - 1;
+                return 8;
+            }
+            else{return 0;}
         }
 };
 
