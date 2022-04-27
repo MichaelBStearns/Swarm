@@ -230,10 +230,10 @@ class ant{
             Serial.print(d_center*cos(currentLoc.yaw)); Serial.print("\t");
             Serial.print(d_center*sin(currentLoc.yaw)); Serial.print("\t");
 
-            currentLoc.Pos.x = currentLoc.Pos.x - d_center*cos(currentLoc.yaw); //new x pos from old x (updates once each loop (10Hz))
+            currentLoc.Pos.x = currentLoc.Pos.x + d_center*cos(currentLoc.yaw); //new x pos from old x (updates once each loop (10Hz))
             currentLoc.Pos.y = currentLoc.Pos.y - d_center*sin(currentLoc.yaw); //new y pos from old y
 
-            euler_to_quarternion(); // calculated quarternion fron existing euler
+            euler_to_quarternion(); // calculated quarternion from existing euler
         }
 
         Coords controlLaw(void){
@@ -281,11 +281,13 @@ class ant{
             lVel = vel - (ang_vel * radius);
             if(rVel < 0){rVel = 0;}
             if(lVel < 0){lVel = 0;}
+            if(rVel > 70){rVel = 70;}
+            if(lVel > 70){lVel = 70;}
 
             rVel = map(rVel, 0, 500, 50, 255); //convert to PWM that makes the motor turn
             lVel = map(lVel, 0, 500, 50, 255);
 
-            // while(rVel > 0 && v_right == 0){             //make sure wheel is turning if it watns to be
+            // while(rVel > 0 && v_right == 0){             //make sure wheel is turning if it wants to be
             //     rVel++;
             //     driveWheel('R',rVel);
             // }   
@@ -301,7 +303,7 @@ class ant{
             lSign = lVel/ abs(lVel);
 
 
-            // while(rVel > 0 && v_right == 0){             //make sure wheel is turning if it watns to be
+            // while(rVel > 0 && v_right == 0){             //make sure wheel is turning if it wants to be
             //     rVel++;
             //     driveWheel('R',rVel);
             // }   
@@ -569,6 +571,7 @@ class ant{
             }
             else{return 0;}
         }
+        
 };
 
 
