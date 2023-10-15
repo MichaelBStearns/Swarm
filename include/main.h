@@ -40,7 +40,7 @@ class ant{
                             vel = 0, ang_vel = 0, viewDist, decision = 0, 
                             scents[5] = {0,0,0,0,0},
                             IRThreshold;
-		float 	            velocity, distance,
+		    float 	            velocity, distance,
                             theta = 0, phi = 0, phiDot = 0,  //angular velocity              //radians
                             previousTimeLeft, previousTimeRight, timeDeltaRight = 0, timeDeltaLeft = 0,
                             omega_left = 0, omega_right = 0, v_center = 0, velocityRight = 0, velocityLeft = 0, revL = 0, revR = 0,
@@ -48,6 +48,7 @@ class ant{
                             d_x, d_y, d_theta,
                             LeftWheelPos[5] = {0,0,0,0,0}, RightWheelPos[5] = {0,0,0,0,0}, distanceRight, distanceLeft,
                             VCC;	                      
+
         bool                active = false;    //pheromones
         uint8_t             currentPher[5], prevPher[5];
         swarm_msgs::Grid    world;   // same as Grid being sent (no pheromones in obstacles so 'N' doesnt overwrite any data)
@@ -101,6 +102,16 @@ class ant{
             else{
                 distanceLeft = LeftWheelPos[2]-LeftWheelPos[1];
             }
+
+        }
+
+        bool avoidSpace(int x, int y){    // make sure robot doesn't want to go out of bounds or into a wall
+            //Serial.println(world.column[x].row[y].pheromones[0]);
+            return (world.column[x].row[y].pheromones[0] == 'N' || x >= squaresinGrid || y >= squaresinGrid|| x <= 0 || y <= 0 || world.column[x].row[y].pheromones[0] > 80 ) ? true : false; 
+        }
+
+        int randomSearch(void){
+            // wander around, avoid hitting walls
             
             // Serial.print("Pos Left: "); //Serial.print("\t");
             // Serial.print(LeftWheelPos[0]); Serial.print("\t");          
@@ -148,6 +159,7 @@ class ant{
             
             currentLoc.Pos.x = currentLoc.Pos.x + d_center * cos(currentLoc.yaw); //new x pos from old x
             currentLoc.Pos.y = currentLoc.Pos.y - d_center * sin(currentLoc.yaw); //new y pos from old y
+
 
             Serial.print("New Location: ");// Serial.print("\t");
             Serial.print(currentLoc.Pos.x); Serial.print("\t");

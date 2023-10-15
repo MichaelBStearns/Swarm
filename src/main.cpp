@@ -205,10 +205,45 @@ void setup() {
 
     Serial.println("start");
     
+
     // Wait until user is ready
     // Serial.print("Press any key to begin");
     // while (Serial.available() != 1);     //wait until any key is pressed
     // Serial.read();   //clear serial buffer
+
+
+    pinMode(ENC_PIN_R, INPUT);
+    pinMode(ENC_PIN_L, INPUT);
+
+    attachInterrupt(digitalPinToInterrupt(ENC_PIN_L), read_encL, FALLING);
+    attachInterrupt(digitalPinToInterrupt(ENC_PIN_R), read_encR, FALLING);
+
+    // Connect the ESP8266 the the wifi AP
+    WiFi.begin(ssid, password);
+     while (WiFi.status() != WL_CONNECTED && timeout <= 10)
+     {
+        timeout++;
+        delay(500);
+        Serial.print(".");
+        lightTog = !lightTog;
+        digitalWrite(LED1_PIN, lightTog);
+        //digitalWrite(LED2_PIN, true);
+     }
+
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    // Serial.println(WiFi.localIP());
+
+    // Set the connection to rosserial socket server
+    nh.getHardware()->setConnection(server, serverPort);
+    nh.initNode();
+    // Start to be polite
+    nh.advertise(chatter);
+    // Start asking questions
+    nh.subscribe(smell);
+    // delay(20000);
+    // Robot.calibrateIR(Robot.ReadIR(FOOD_PIN));
 
 }
 
@@ -236,9 +271,101 @@ void loop() {
     {try{throw "LIDAR TIMEOUT";} catch (int E){Serial.print("AN EXCEPTION WAS THROWN: ");Serial.print(E);}} // throw exception
 
     Robot.viewDist = sensor.readRangeContinuousMillimeters(); // gives Lidar distance in mm
+
     scent = Robot.readIR(FOOD_PIN);                     // returns true if food found, returns false if not
     if(scent > Robot.IRThreshold){
         //food
+
+
+    /* #endregion */
+    /* #region ----------------------------------------------CALCULATIONS--------------------------------------------------------------------*/
+
+    // convert pos in mm to grid pos
+    Coords grid = Robot.pos_to_Grid(Robot.currentLoc.Pos.x, Robot.currentLoc.Pos.y);
+    Robot.currentLoc.Grid.x = grid.x;
+    Robot.currentLoc.Grid.y = grid.y;
+
+    Robot.euler_to_quarternion();
+
+    // Robot.locateObstacle(Robot.viewDist);
+
+    // Robot.getOdom(left, right);
+
+    /* #endregion */
+    /* #region ---------------------------------------------ROS-CONNECTION-------------------------------------------------------------------*/
+
+    pose_msg.pose.position.x = Robot.currentLoc.Pos.x;      // std_msgs/Pose (minus z)
+    pose_msg.pose.position.y = Robot.currentLoc.Pos.y;
+    pose_msg.pose.orientation.x = Robot.currentLoc.qx;
+    pose_msg.pose.orientation.y = Robot.currentLoc.qy;
+    pose_msg.pose.orientation.z = Robot.currentLoc.qz;
+    pose_msg.pose.orientation.w = Robot.currentLoc.qw;
+    pose_msg.header.frame_id = Robot.name.c_str();          // Robot name (convert to const char* bc c++ doesn't do strings)
+    pose_msg.pheromone = Robot.active;                      // pheromone activation
+    pose_msg.state = state.c_str();                         // state of robot for reference
+    // pose_msg.display[0] = ;                              // if anything to display wirelessly (bugfixing)
+    // pose_msg.display[1] = ;
+    // pose_msg.display[2] = ;
+    // pose_msg.display[3] = ;
+    // pose_msg.display[4] = ;
+
+
+    if(WiFi.status() == WL_CONNECTED && nh.connected()){    // connected to Wifi and roscore
+        chatter.publish(&pose_msg);
+         digitalWrite(LED1_PIN, false);
+         //digitalWrite(LED2_PIN, true);
+     }
+     else if (WiFi.status() != WL_CONNECTED){                // not connected to network
+         Serial.print("DISCONNECTED FROM ");  Serial.println(ssid);
+         WiFi.reconnect();
+         timeout = 0;
+         while (WiFi.status() != WL_CONNECTED && timeout <= 20)
+         {
+             timeout++;
+             delay(500);
+             Serial.print(".");
+
+             lightTog = !lightTog;
+             digitalWrite(LED1_PIN, lightTog);               // slow blink
+             //digitalWrite(LED2_PIN, true);
+         }
+         Serial.println("");
+     }
+     else if (!nh.connected()){                              // only not connected to roscore
+         Serial.println("DISCONNECTED FROM ROS");
+          nh.advertise(chatter);
+         timeout = 0;
+         while (!nh.connected() && timeout <= 10){
+             timeout++;
+             delay(250);
+             Serial.print(".");
+             nh.spinOnce();
+
+             lightTog = !lightTog;
+             digitalWrite(LED1_PIN, lightTog);               // faster blink
+             //digitalWrite(LED2_PIN, true);
+         }
+         Serial.println("");
+     }
+
+    /* #endregion */
+    /* #region ------------------------------------------------BEHAVIOR----------------------------------------------------------------------*/
+
+    // Robot.decision(state); // decides the overall state of the robot (wandering, tracking, etc.)
+
+    // Robot.getOdom(left, right);
+    Robot.getOdom();
+
+    if(Robot.scentFilter(scent)){
+        state = "FOUND_FOOD";
+    }
+    bool reachedGoal = Robot.reachedGoal();
+    if(reachedGoal == true){
+        Robot.driveWheel('R',0);
+        Robot.driveWheel('L',0);
+        delay(1000);
+        Robot.decision = 0;
+        Robot.nextStep(state); // decides how to decide desired location
     }
     else{
         //no food
